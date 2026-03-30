@@ -1,43 +1,43 @@
 # Community AI Ops Bot
 
-This project is a practical MVP for the kind of Discord bot shown in `Lucius_PPT_compressed.pdf`.
+这是一个面向 Discord 社区运营场景的 AI 机器人项目。
 
-It now covers the first real product loop:
+当前版本已经覆盖第一版可用闭环：
 
-- answer questions from a mixed knowledge base
-- import markdown, text, html, json, pdf, and remote documentation pages
-- optionally store runtime data in PostgreSQL
-- optionally index knowledge chunks in pgvector
-- score lead intent with rules plus optional OpenAI analysis
-- alert an internal Discord channel, Slack webhook, and email inbox
-- generate daily and weekly reports
+- 基于知识库回答用户问题
+- 导入本地和远程文档
+- 识别定价、演示、企业采购、集成接入等意向信号
+- 发送 Discord、Slack、邮件告警
+- 输出日报和周报
+- 支持本地 JSON 或 PostgreSQL 存储
 
-## What is implemented
+## 已实现功能
 
-Core bot flow:
+机器人主流程：
 
-- welcome and guide new members
-- answer `/ask` and `!ask` questions
-- auto-answer when mentioned or in monitored channels
-- detect pricing, demo, enterprise, integration, and support signals
-- block obvious spam and suspicious links
+- 新成员欢迎与基础引导
+- 支持 `/ask` 和 `!ask` 问答
+- 被 mention 或在指定频道内自动回复
+- 基础垃圾信息与可疑链接拦截
+- 高意向用户识别与跟进建议
 
-Storage and retrieval:
+知识库与检索：
 
-- local JSON fallback for zero-setup development
-- optional PostgreSQL state store when `DATABASE_URL` is set
-- optional pgvector knowledge search when both `DATABASE_URL` and `OPENAI_API_KEY` are set
-- lexical fallback search when vectors are unavailable
+- 递归扫描 `knowledge/` 目录
+- 支持 `.md`、`.txt`、`.json`、`.html`、`.pdf`
+- 支持通过 `knowledge/sources.json` 导入远程网页或额外文件
+- 未配置向量检索时自动回退到关键词检索
 
-Ops workflows:
+通知与报表：
 
-- Discord internal lead alerts
-- Slack webhook alerts
-- SMTP email alerts
-- slash commands for daily and weekly reports
-- scheduled daily and weekly digest delivery
+- Discord 内部告警
+- Slack webhook 告警
+- SMTP 邮件告警
+- `/daily-report` 日报
+- `/weekly-report` 周报
+- 定时投递日报和周报
 
-## Project structure
+## 项目结构
 
 ```txt
 .
@@ -75,47 +75,47 @@ Ops workflows:
 └── tsconfig.json
 ```
 
-## Setup
+## 快速开始
 
-1. Create a Discord application and bot in the Discord Developer Portal.
-2. Enable:
+1. 在 Discord Developer Portal 创建应用和 Bot。
+2. 开启以下权限：
    - `Server Members Intent`
    - `Message Content Intent`
-3. Copy `.env.example` to `.env`.
-4. Install dependencies:
+3. 复制 `.env.example` 为 `.env` 并填写配置。
+4. 安装依赖：
 
 ```bash
 npm install
 ```
 
-5. Register slash commands for your test guild:
+5. 注册斜杠命令：
 
 ```bash
 npm run register:commands
 ```
 
-6. Start the bot:
+6. 启动项目：
 
 ```bash
 npm run dev
 ```
 
-## Commands
+## 支持的命令
 
-- `/ask question:<text>`: ask the assistant
-- `/daily-report`: show today's summary
-- `/weekly-report`: show the last 7 days
-- `/reload-kb`: reload local and remote knowledge sources
+- `/ask question:<text>`：向机器人提问
+- `/daily-report`：查看日报
+- `/weekly-report`：查看近 7 天周报
+- `/reload-kb`：重新加载知识库
 
-The bot also auto-replies when:
+此外，以下场景也会自动回复：
 
-- it is mentioned in a message
-- a message is sent in one of `MONITORED_CHANNEL_IDS`
-- a user writes `!ask ...`
+- 用户 mention 机器人
+- 消息出现在 `MONITORED_CHANNEL_IDS` 指定频道
+- 用户发送 `!ask ...`
 
-## Knowledge import
+## 知识库导入
 
-The bot always scans `KNOWLEDGE_DIR` recursively for:
+程序会递归扫描 `KNOWLEDGE_DIR` 指向的目录，并导入以下文件类型：
 
 - `.md`
 - `.txt`
@@ -123,11 +123,11 @@ The bot always scans `KNOWLEDGE_DIR` recursively for:
 - `.html`
 - `.pdf`
 
-You can also add `knowledge/sources.json` to pull in remote pages or files. Start from [sources.example.json](/Users/aaronyu/Desktop/ConvexAI/knowledge/sources.example.json).
+如果你想接入远程网页或额外文件，可以新建 `knowledge/sources.json`，格式参考 [sources.example.json](/Users/aaronyu/Desktop/ConvexAI/knowledge/sources.example.json)。
 
-## Environment variables
+## 环境变量
 
-Discord and OpenAI:
+Discord 与 OpenAI：
 
 - `DISCORD_BOT_TOKEN`
 - `DISCORD_CLIENT_ID`
@@ -138,14 +138,14 @@ Discord and OpenAI:
 - `EMBEDDING_MODEL`
 - `EMBEDDING_DIMENSIONS`
 
-Storage and knowledge:
+存储与知识库：
 
 - `DATABASE_URL`
 - `KNOWLEDGE_DIR`
 - `KNOWLEDGE_SOURCES_FILE`
 - `DATA_FILE`
 
-Bot behavior:
+机器人行为：
 
 - `BOT_NAME`
 - `WELCOME_CHANNEL_ID`
@@ -153,14 +153,14 @@ Bot behavior:
 - `REPORT_CHANNEL_ID`
 - `MONITORED_CHANNEL_IDS`
 
-Reporting:
+报表调度：
 
 - `REPORT_TIMEZONE`
 - `DAILY_REPORT_HOUR`
 - `WEEKLY_REPORT_DAY`
 - `WEEKLY_REPORT_HOUR`
 
-Alerting:
+告警渠道：
 
 - `SLACK_WEBHOOK_URL`
 - `ALERT_EMAIL_TO`
@@ -171,20 +171,20 @@ Alerting:
 - `SMTP_USER`
 - `SMTP_PASS`
 
-## PostgreSQL and pgvector
+## PostgreSQL 与 pgvector
 
-If you want production-style storage:
+如果你要切到生产型存储，建议：
 
-1. provision PostgreSQL
-2. install the `pgvector` extension
-3. set `DATABASE_URL`
-4. keep `EMBEDDING_DIMENSIONS` aligned with your embedding model output
+1. 准备 PostgreSQL 数据库
+2. 安装 `pgvector` 扩展
+3. 配置 `DATABASE_URL`
+4. 确保 `EMBEDDING_DIMENSIONS` 与 embedding 模型维度一致
 
-On startup, the bot applies [schema.sql](/Users/aaronyu/Desktop/ConvexAI/db/schema.sql).
+项目启动时会自动执行 [schema.sql](/Users/aaronyu/Desktop/ConvexAI/db/schema.sql)。
 
-## Current fallback behavior
+## 当前回退策略
 
-- no `DATABASE_URL`: uses local JSON state
-- no `OPENAI_API_KEY`: uses lexical retrieval and rule-based lead scoring
-- no Slack or email config: only Discord alerts are sent
-- no report destination configured: scheduled digests are skipped
+- 未配置 `DATABASE_URL`：使用本地 JSON 存储
+- 未配置 `OPENAI_API_KEY`：使用关键词检索和规则意向识别
+- 未配置 Slack 或邮箱：只发 Discord 告警
+- 未配置报表投递目标：跳过定时日报和周报发送
