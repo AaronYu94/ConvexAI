@@ -1,0 +1,14 @@
+{
+  "sources": [
+    {
+      "type": "url",
+      "url": "https://example.com/docs",
+      "title": "Example Docs"
+    },
+    {
+      "type": "file",
+      "path": "../Lucius_PPT_compressed.pdf",
+      "title": "Lucius Deck"
+    }
+  ]
+}
