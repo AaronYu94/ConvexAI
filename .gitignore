@@ -1,9 +1,11 @@
 node_modules
 dist
 .cache
+.DS_Store
 .env
 data/state.json
 tmp
 Lucius_PPT_compressed.pdf
 image.png
 knowledge/sources.json
+knowledge/uploads

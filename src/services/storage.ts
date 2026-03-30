@@ -34,7 +34,10 @@ export class JsonStateStore implements StateStore {
       const parsed = JSON.parse(raw) as BotState;
       this.state = {
         users: parsed.users ?? {},
-        messages: parsed.messages ?? [],
+        messages: (parsed.messages ?? []).map((message) => ({
+          ...message,
+          source: message.source ?? "discord_message"
+        })),
         leads: parsed.leads ?? [],
         events: parsed.events ?? []
       };
@@ -75,7 +78,7 @@ export class JsonStateStore implements StateStore {
   async recordMessage(input: MessageInput): Promise<BotMessage> {
     const message: BotMessage = {
       ...input,
-      source: "discord"
+      source: input.source ?? "discord_message"
     };
 
     this.state.messages.push(message);

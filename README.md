@@ -10,6 +10,7 @@
 - 发送 Discord、Slack、邮件告警
 - 输出日报和周报
 - 支持本地 JSON 或 PostgreSQL 存储
+- 提供给频道管理者使用的后台页面
 
 ## 已实现功能
 
@@ -36,6 +37,15 @@
 - `/daily-report` 日报
 - `/weekly-report` 周报
 - 定时投递日报和周报
+
+管理后台：
+
+- 查看用户画像与标签
+- 查看近期高意向线索
+- 查看最近消息流
+- 上传知识库文件
+- 添加远程文档 URL
+- 一键重载知识库
 
 ## 项目结构
 
@@ -100,6 +110,11 @@ npm run register:commands
 npm run dev
 ```
 
+启动后会同时运行：
+
+- Discord Bot
+- 管理后台：`http://localhost:3010/admin`
+
 ## 支持的命令
 
 - `/ask question:<text>`：向机器人提问
@@ -112,6 +127,27 @@ npm run dev
 - 用户 mention 机器人
 - 消息出现在 `MONITORED_CHANNEL_IDS` 指定频道
 - 用户发送 `!ask ...`
+
+## 管理后台
+
+这是一个给频道管理者和运营人员使用的轻量后台页面。
+
+默认地址：
+
+```txt
+http://localhost:3010/admin
+```
+
+在后台里你可以：
+
+- 上传 `.md`、`.txt`、`.json`、`.html`、`.pdf`
+- 添加远程网页作为知识来源
+- 重新加载知识库
+- 查看用户画像、标签和 lead score
+- 查看最近识别出的高意向线索
+- 查看近期消息
+
+如果你配置了后台账号密码，访问页面会要求 Basic Auth 登录。
 
 ## 知识库导入
 
@@ -171,6 +207,12 @@ Discord 与 OpenAI：
 - `SMTP_USER`
 - `SMTP_PASS`
 
+管理后台：
+
+- `ADMIN_PORT`
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
+
 ## PostgreSQL 与 pgvector
 
 如果你要切到生产型存储，建议：
@@ -188,3 +230,4 @@ Discord 与 OpenAI：
 - 未配置 `OPENAI_API_KEY`：使用关键词检索和规则意向识别
 - 未配置 Slack 或邮箱：只发 Discord 告警
 - 未配置报表投递目标：跳过定时日报和周报发送
+- 未配置 `ADMIN_USERNAME` / `ADMIN_PASSWORD`：本地后台不启用额外登录保护

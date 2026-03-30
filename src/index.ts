@@ -9,6 +9,7 @@ import {
 } from "discord.js";
 import { getConfig } from "./config";
 import { AlertService } from "./services/alerts";
+import { AdminServer } from "./services/adminServer";
 import { DigestScheduler } from "./services/digestScheduler";
 import { KnowledgeEngine } from "./services/knowledgeEngine";
 import { LeadAnalyzer } from "./services/leadAnalyzer";
@@ -66,6 +67,7 @@ async function main(): Promise<void> {
   const leadAnalyzer = new LeadAnalyzer(config);
   const alerts = new AlertService(config);
   const scheduler = new DigestScheduler(config, store, alerts);
+  const adminServer = new AdminServer(config, store, knowledge);
 
   const client = new Client({
     intents: [
@@ -80,6 +82,8 @@ async function main(): Promise<void> {
     scheduler.start(client);
     console.log(`${readyClient.user.tag} is online with ${knowledgeCount} knowledge chunks.`);
   });
+
+  await adminServer.start();
 
   client.on(Events.GuildMemberAdd, async (member) => {
     await store.upsertUser({
@@ -146,6 +150,36 @@ async function main(): Promise<void> {
       }
 
       const question = interaction.options.getString("question", true).trim();
+      const displayName =
+        interaction.member && "displayName" in interaction.member
+          ? interaction.member.displayName
+          : interaction.user.globalName ?? interaction.user.username;
+
+      await store.upsertUser({
+        id: interaction.user.id,
+        username: interaction.user.username,
+        displayName
+      });
+
+      await store.recordMessage({
+        id: `slash-${interaction.id}`,
+        userId: interaction.user.id,
+        username: interaction.user.username,
+        channelId: interaction.channelId,
+        content: question,
+        createdAt: interaction.createdAt.toISOString(),
+        source: "slash_ask"
+      });
+
+      await store.recordEvent(
+        "slash_question_received",
+        {
+          question,
+          channelId: interaction.channelId
+        },
+        interaction.user.id
+      );
+
       await interaction.deferReply();
       const results = await knowledge.search(question);
       const answer = await responder.answer(question, results);
@@ -188,7 +222,8 @@ async function main(): Promise<void> {
       username: message.author.username,
       channelId: message.channelId,
       content: message.content,
-      createdAt: message.createdAt.toISOString()
+      createdAt: message.createdAt.toISOString(),
+      source: "discord_message"
     });
 
     const moderation = moderateMessage(message.content);
@@ -274,6 +309,7 @@ async function main(): Promise<void> {
 
   const shutdown = async (): Promise<void> => {
     scheduler.stop();
+    await adminServer.stop();
     await knowledge.close();
     await store.close();
     client.destroy();

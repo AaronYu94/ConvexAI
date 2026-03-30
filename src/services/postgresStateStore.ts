@@ -39,7 +39,7 @@ function rowToMessage(row: any): BotMessage {
     channelId: row.channel_id,
     content: row.content,
     createdAt: toIso(row.created_at),
-    source: "discord"
+    source: row.source ?? "discord_message"
   };
 }
 
@@ -135,11 +135,11 @@ export class PostgresStateStore implements StateStore {
   async recordMessage(input: MessageInput): Promise<BotMessage> {
     const result = await this.pool.query(
       `
-        insert into messages (id, user_id, username, channel_id, content, created_at)
-        values ($1, $2, $3, $4, $5, $6)
+        insert into messages (id, user_id, username, channel_id, content, created_at, source)
+        values ($1, $2, $3, $4, $5, $6, $7)
         returning *
       `,
-      [input.id, input.userId, input.username, input.channelId, input.content, input.createdAt]
+      [input.id, input.userId, input.username, input.channelId, input.content, input.createdAt, input.source ?? "discord_message"]
     );
 
     return rowToMessage(result.rows[0]);

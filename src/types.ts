@@ -28,6 +28,9 @@ export interface BotConfig {
   smtpSecure: boolean;
   smtpUser?: string;
   smtpPass?: string;
+  adminPort: number;
+  adminUsername?: string;
+  adminPassword?: string;
 }
 
 export interface BotUser {
@@ -48,7 +51,7 @@ export interface BotMessage {
   channelId: string;
   content: string;
   createdAt: string;
-  source: "discord";
+  source: "discord_message" | "slash_ask";
 }
 
 export interface LeadEvent {
@@ -92,6 +95,7 @@ export interface MessageInput {
   channelId: string;
   content: string;
   createdAt: string;
+  source?: "discord_message" | "slash_ask";
 }
 
 export interface LeadInput {

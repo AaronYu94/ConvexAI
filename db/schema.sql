@@ -17,8 +17,12 @@ create table if not exists messages (
   username text not null,
   channel_id text not null,
   content text not null,
-  created_at timestamptz not null
+  created_at timestamptz not null,
+  source text not null default 'discord_message'
 );
+
+alter table messages
+  add column if not exists source text not null default 'discord_message';
 
 create table if not exists leads (
   id text primary key,

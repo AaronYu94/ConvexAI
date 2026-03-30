@@ -46,6 +46,30 @@ export class KnowledgeEngine {
     return this.chunks.length;
   }
 
+  getChunkSourceSummary(): Array<{ source: string; chunkCount: number; titles: string[] }> {
+    const groups = new Map<string, { source: string; chunkCount: number; titles: Set<string> }>();
+
+    for (const chunk of this.chunks) {
+      const group = groups.get(chunk.source) ?? {
+        source: chunk.source,
+        chunkCount: 0,
+        titles: new Set<string>()
+      };
+
+      group.chunkCount += 1;
+      group.titles.add(chunk.title);
+      groups.set(chunk.source, group);
+    }
+
+    return [...groups.values()]
+      .map((group) => ({
+        source: group.source,
+        chunkCount: group.chunkCount,
+        titles: [...group.titles].slice(0, 6)
+      }))
+      .sort((left, right) => right.chunkCount - left.chunkCount);
+  }
+
   async search(query: string, limit = 4): Promise<KnowledgeSearchResult[]> {
     const lexicalResults = searchKnowledgeBase(this.chunks, query, limit + 2);
 

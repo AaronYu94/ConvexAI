@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>管理后台 | ConvexAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Caveat:wght@600&family=Outfit:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-cream: #faf5eb;
+        --text-blue: #0b5ed7;
+        --accent-red: #e3182b;
+        --accent-pink: #faaeec;
+        --accent-yellow: #f5b201;
+        --accent-orange: #f0650d;
+        --accent-green: #009f4d;
+        --font-display: "Archivo Black", sans-serif;
+        --font-body: "Outfit", sans-serif;
+        --font-script: "Caveat", cursive;
+        --space-xs: 4px;
+        --space-sm: 8px;
+        --space-md: 16px;
+        --space-lg: 24px;
+        --space-xl: 48px;
+        --space-xxl: 64px;
+        --wave-blue: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 10' width='40' height='10'%3E%3Cpath d='M0 5 Q 10 0, 20 5 T 40 5' fill='none' stroke='%230B5ED7' stroke-width='2'/%3E%3C/svg%3E");
+        --wave-pink-fill: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 20' width='40' height='20' preserveAspectRatio='none'%3E%3Cpath d='M0 10 Q 10 0, 20 10 T 40 10 L 40 20 L 0 20 Z' fill='%23FAAEEC'/%3E%3C/svg%3E");
+        --wave-yellow-fill: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 20' width='40' height='20' preserveAspectRatio='none'%3E%3Cpath d='M0 10 Q 10 0, 20 10 T 40 10 L 40 20 L 0 20 Z' fill='%23F5B201'/%3E%3C/svg%3E");
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        background-color: var(--bg-cream);
+        color: var(--text-blue);
+        font-family: var(--font-body);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+        position: relative;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 9999;
+        opacity: 0.25;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        mix-blend-mode: multiply;
+      }
+
+      h1,
+      h2,
+      h3 {
+        font-family: var(--font-display);
+        text-transform: uppercase;
+        letter-spacing: -0.02em;
+        line-height: 1.05;
+        font-weight: 900;
+      }
+
+      h1 {
+        font-size: 2.15rem;
+      }
+
+      h2 {
+        font-size: 1.4rem;
+      }
+
+      h3 {
+        font-size: 1rem;
+      }
+
+      .script-number {
+        font-family: var(--font-script);
+        font-size: 1.5rem;
+        color: var(--text-blue);
+        font-weight: 700;
+      }
+
+      .app-layout {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        background-color: var(--bg-cream);
+        border-right: 2px solid var(--text-blue);
+        padding: var(--space-xl) var(--space-lg);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xl);
+        background-image:
+          linear-gradient(rgba(11, 94, 215, 0.07) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(11, 94, 215, 0.07) 1px, transparent 1px);
+        background-size: 20px 20px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .brand-mark {
+        width: 132px;
+        aspect-ratio: 3 / 2;
+        border: 2px solid var(--text-blue);
+        background: transparent;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 8px 8px 0 rgba(11, 94, 215, 0.1);
+        overflow: hidden;
+      }
+
+      .brand-mark img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transform: scale(1.7);
+        transform-origin: center;
+      }
+
+      .brand-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .brand small {
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.95rem;
+      }
+
+      .nav-menu {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+
+      .nav-item {
+        display: block;
+        text-decoration: none;
+        color: var(--text-blue);
+        font-weight: 800;
+        padding: var(--space-sm) var(--space-md);
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
+        position: relative;
+      }
+
+      .nav-item:hover {
+        background-color: rgba(11, 94, 215, 0.05);
+      }
+
+      .nav-item.active {
+        border: 2px solid var(--text-blue);
+        background-color: var(--bg-cream);
+      }
+
+      .nav-item.active::after {
+        content: "";
+        position: absolute;
+        bottom: -6px;
+        left: -2px;
+        right: -2px;
+        height: 10px;
+        background-image: var(--wave-blue);
+        background-repeat: repeat-x;
+      }
+
+      .nav-item-icon {
+        font-family: var(--font-script);
+        font-size: 1.2rem;
+        margin-right: var(--space-sm);
+        display: inline-block;
+        width: 20px;
+      }
+
+      .sidebar-note {
+        margin-top: auto;
+        padding-top: var(--space-lg);
+        border-top: 2px solid var(--text-blue);
+        font-size: 0.92rem;
+        font-weight: 600;
+      }
+
+      .sidebar-note strong {
+        display: block;
+        margin-bottom: var(--space-sm);
+        font-family: var(--font-display);
+        text-transform: uppercase;
+        font-size: 0.95rem;
+        font-weight: 900;
+      }
+
+      .main-content {
+        padding: var(--space-xl);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xl);
+      }
+
+      .content-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: var(--space-lg);
+        padding-bottom: var(--space-md);
+        border-bottom: 2px solid var(--text-blue);
+      }
+
+      .content-header p {
+        margin-top: var(--space-sm);
+        font-weight: 650;
+        max-width: 720px;
+      }
+
+      .user-profile {
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: var(--space-md);
+      }
+
+      .avatar {
+        width: 40px;
+        height: 40px;
+        background-color: var(--accent-yellow);
+        border: 2px solid var(--text-blue);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-display);
+        font-weight: 900;
+      }
+
+      .notice {
+        display: none;
+        padding: var(--space-md);
+        border: 2px solid var(--text-blue);
+        background: var(--accent-pink);
+        font-weight: 700;
+      }
+
+      .notice.show {
+        display: block;
+      }
+
+      .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-lg);
+      }
+
+      .stat-card {
+        border: 2px solid var(--text-blue);
+        background-color: var(--bg-cream);
+        padding: var(--space-lg);
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+
+      .stat-card::before {
+        content: "";
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        height: 16px;
+        background-repeat: repeat-x;
+        background-position: top;
+      }
+
+      .stat-card.c-pink::before {
+        background-image: var(--wave-pink-fill);
+      }
+
+      .stat-card.c-yellow::before {
+        background-image: var(--wave-yellow-fill);
+      }
+
+      .stat-card.c-green {
+        background-color: var(--accent-green);
+        color: var(--bg-cream);
+        border-color: var(--accent-green);
+      }
+
+      .stat-card.c-green::before {
+        background-image: none;
+      }
+
+      .stat-card.c-green .stat-value,
+      .stat-card.c-green .script-number,
+      .stat-card.c-green .stat-label {
+        color: var(--bg-cream);
+      }
+
+      .stat-label {
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 800;
+        margin-top: var(--space-md);
+      }
+
+      .stat-value {
+        font-family: var(--font-display);
+        font-size: 3rem;
+        line-height: 1;
+        font-weight: 900;
+      }
+
+      .data-section {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-md);
+      }
+
+      .section-desc {
+        font-weight: 650;
+        max-width: 760px;
+      }
+
+      .controls-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: var(--space-lg);
+      }
+
+      .controls-bar p {
+        font-weight: 650;
+        max-width: 680px;
+      }
+
+      .actions {
+        display: flex;
+        gap: var(--space-sm);
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        background-color: var(--text-blue);
+        color: var(--bg-cream);
+        border: none;
+        padding: var(--space-sm) var(--space-lg);
+        font-family: var(--font-display);
+        font-size: 1rem;
+        text-transform: uppercase;
+        font-weight: 900;
+        cursor: pointer;
+        transition: transform 0.1s;
+      }
+
+      .btn:hover {
+        background-color: var(--accent-red);
+        transform: translateY(-2px);
+      }
+
+      .btn-outline {
+        background-color: transparent;
+        color: var(--text-blue);
+        border: 2px solid var(--text-blue);
+      }
+
+      .btn-outline:hover {
+        background-color: var(--text-blue);
+        color: var(--bg-cream);
+      }
+
+      .table-container {
+        border: 2px solid var(--text-blue);
+        background-color: var(--bg-cream);
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+
+      th,
+      td {
+        padding: var(--space-md);
+        border-bottom: 2px solid var(--text-blue);
+        vertical-align: top;
+      }
+
+      th {
+        font-weight: 900;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+        letter-spacing: 0.05em;
+        background-color: rgba(11, 94, 215, 0.05);
+      }
+
+      td strong {
+        font-weight: 800;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      tbody tr:hover {
+        background-color: rgba(250, 174, 236, 0.2);
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 2px 12px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        border: 2px solid var(--text-blue);
+      }
+
+      .tag-badge {
+        text-transform: none;
+        letter-spacing: 0.01em;
+      }
+
+      .badge.active {
+        background-color: var(--accent-green);
+        color: var(--bg-cream);
+      }
+
+      .badge.pending {
+        background-color: var(--accent-yellow);
+        color: var(--text-blue);
+      }
+
+      .badge.admin {
+        background-color: var(--accent-pink);
+        color: var(--text-blue);
+      }
+
+      .badge.hot {
+        background-color: var(--accent-red);
+        color: var(--bg-cream);
+      }
+
+      .action-link {
+        color: var(--accent-orange);
+        font-weight: 800;
+        text-decoration: none;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+      }
+
+      .action-link:hover {
+        text-decoration: underline;
+        text-decoration-thickness: 2px;
+        text-underline-offset: 4px;
+      }
+
+      .split-grid {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: var(--space-lg);
+      }
+
+      .panel-box {
+        border: 2px solid var(--text-blue);
+        padding: var(--space-lg);
+        background: rgba(255, 255, 255, 0.25);
+      }
+
+      .panel-box h3 {
+        margin-bottom: var(--space-md);
+      }
+
+      .section-title {
+        font-family: var(--font-body);
+        font-size: 1.2rem;
+        font-weight: 900;
+        letter-spacing: 0.01em;
+        text-transform: none;
+      }
+
+      .controls-bar .section-title {
+        font-family: var(--font-display);
+        font-size: 2rem;
+        font-weight: 900;
+        line-height: 0.95;
+        letter-spacing: -0.03em;
+        text-transform: none;
+        display: inline-block;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 4px solid var(--accent-red);
+      }
+
+      .panel-box .section-title {
+        font-family: var(--font-body);
+        font-size: 1.18rem;
+        font-weight: 900;
+        line-height: 1.1;
+        letter-spacing: 0.01em;
+        text-transform: none;
+      }
+
+      .panel-box p {
+        margin-bottom: var(--space-md);
+        font-weight: 650;
+      }
+
+      .form-stack {
+        display: grid;
+        gap: var(--space-md);
+      }
+
+      .field {
+        display: grid;
+        gap: var(--space-xs);
+      }
+
+      .field label {
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 800;
+      }
+
+      .field input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 2px solid var(--text-blue);
+        background: var(--bg-cream);
+        color: var(--text-blue);
+        font: inherit;
+      }
+
+      .stack-actions {
+        display: flex;
+        gap: var(--space-sm);
+        flex-wrap: wrap;
+      }
+
+      .list-mini {
+        list-style: none;
+        display: grid;
+        gap: var(--space-sm);
+      }
+
+      .list-mini li {
+        border-bottom: 2px solid rgba(11, 94, 215, 0.14);
+        padding-bottom: var(--space-sm);
+      }
+
+      .list-mini li:last-child {
+        border-bottom: none;
+      }
+
+      .mini-meta {
+        font-size: 0.86rem;
+        font-weight: 650;
+      }
+
+      .muted {
+        opacity: 0.78;
+      }
+
+      .empty-state {
+        padding: var(--space-lg);
+        border: 2px dashed var(--text-blue);
+        text-align: center;
+        font-weight: 700;
+      }
+
+      @media (max-width: 1180px) {
+        .app-layout {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: static;
+          height: auto;
+          border-right: none;
+          border-bottom: 2px solid var(--text-blue);
+        }
+
+        .dashboard-grid,
+        .split-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 820px) {
+        .main-content {
+          padding: 24px;
+        }
+
+        .controls-bar,
+        .content-header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .dashboard-grid {
+          gap: var(--space-md);
+        }
+
+        .stat-value {
+          font-size: 2.2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">
+            <img src="/admin/assets/logo.png" alt="ConvexAI 标志" />
+          </div>
+          <div class="brand-copy">
+            <small>ConvexAI</small>
+          </div>
+        </div>
+
+        <nav>
+          <ul class="nav-menu">
+            <li><a href="#dashboard" class="nav-item"><span class="nav-item-icon">1</span> 总览</a></li>
+            <li><a href="#users" class="nav-item active"><span class="nav-item-icon">2</span> 用户画像</a></li>
+            <li><a href="#knowledge" class="nav-item"><span class="nav-item-icon">3</span> 知识库</a></li>
+            <li><a href="#leads" class="nav-item"><span class="nav-item-icon">4</span> 高意向队列</a></li>
+            <li><a href="#activity" class="nav-item"><span class="nav-item-icon">5</span> 社区动态</a></li>
+          </ul>
+        </nav>
+
+        <div class="sidebar-note">
+          <strong>运营提示</strong>
+          建议把 FAQ、定价、接入文档和 Demo 说明分开整理。来源越清晰，机器人检索出来的答案就越稳定。
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="content-header" id="dashboard">
+          <div>
+            <h2>管理后台</h2>
+            <p>
+              面向频道管理者的工作台。你可以在这里上传知识库、查看用户画像、筛选高意向用户，并持续校准机器人依赖的资料来源。
+            </p>
+          </div>
+          <div class="user-profile">
+            <span>管理员会话</span>
+            <div class="avatar">A</div>
+          </div>
+        </header>
+
+        <div class="notice" id="notice"></div>
+
+        <div class="dashboard-grid">
+          <div class="stat-card c-pink">
+            <span class="script-number">用户</span>
+            <span class="stat-value" id="stat-users">-</span>
+            <span class="stat-label">已记录画像</span>
+          </div>
+          <div class="stat-card c-yellow">
+            <span class="script-number">消息</span>
+            <span class="stat-value" id="stat-messages">-</span>
+            <span class="stat-label">已记录消息</span>
+          </div>
+          <div class="stat-card c-green">
+            <span class="script-number">分块</span>
+            <span class="stat-value" id="stat-chunks">-</span>
+            <span class="stat-label">知识分块</span>
+          </div>
+        </div>
+
+        <section class="data-section" id="users">
+          <div class="controls-bar">
+            <div>
+              <h3 class="section-title">用户画像</h3>
+              <p class="section-desc">
+                这里展示机器人累积出来的用户画像。重点看意向分、标签、最近活跃时间和最近消息，可以帮助运营判断谁需要被优先跟进。
+              </p>
+            </div>
+            <div class="actions">
+              <span class="badge admin">实时画像</span>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>用户</th>
+                  <th>标签</th>
+                  <th>意向分</th>
+                  <th>活跃度</th>
+                  <th>最近上下文</th>
+                </tr>
+              </thead>
+              <tbody id="profiles-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="data-section" id="knowledge">
+          <div class="controls-bar">
+            <div>
+              <h3 class="section-title">知识库</h3>
+              <p class="section-desc">
+                上传本地知识文件，或者登记远程文档 URL。保存后可以立即重载，新的内容会进入机器人检索范围。
+              </p>
+            </div>
+            <div class="actions">
+              <button class="btn btn-outline" id="reload-button" type="button">重载知识库</button>
+            </div>
+          </div>
+
+          <div class="split-grid">
+            <div class="panel-box">
+              <h3 class="section-title">导入控制台</h3>
+              <p>支持 `.md`、`.txt`、`.json`、`.html`、`.pdf`。文件会被放入 `knowledge/uploads` 并在重载后立刻生效。</p>
+
+              <div class="form-stack">
+                <form id="upload-form" class="form-stack">
+                  <div class="field">
+                    <label for="upload-files">上传文件</label>
+                    <input id="upload-files" type="file" name="files" accept=".md,.txt,.json,.html,.htm,.pdf" multiple />
+                  </div>
+                  <div class="stack-actions">
+                    <button class="btn" type="submit">上传并重载</button>
+                  </div>
+                </form>
+
+                <form id="url-form" class="form-stack">
+                  <div class="field">
+                    <label for="source-url">远程 URL</label>
+                    <input id="source-url" type="url" name="url" placeholder="https://docs.yourproduct.com" required />
+                  </div>
+                  <div class="field">
+                    <label for="source-title">来源标签</label>
+                    <input id="source-title" type="text" name="title" placeholder="给管理者看的备注标题，可选" />
+                  </div>
+                  <div class="stack-actions">
+                    <button class="btn btn-outline" type="submit">添加 URL 并重载</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div class="panel-box">
+              <h3 class="section-title">来源索引</h3>
+              <p>按来源查看目前已经切成多少个知识块，以及每个来源里最常见的标题。</p>
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>来源</th>
+                      <th>分块数</th>
+                      <th>标题</th>
+                    </tr>
+                  </thead>
+                  <tbody id="chunk-sources-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="data-section" id="leads">
+          <div class="controls-bar">
+            <div>
+              <h3 class="section-title">高意向队列</h3>
+              <p class="section-desc">
+                这里展示近期被机器人标记为高意向的用户。适合销售、社区负责人或 BD 快速筛查跟进对象。
+              </p>
+            </div>
+            <div class="actions">
+              <span class="badge pending" id="lead-count-badge">0 条线索</span>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>用户</th>
+                  <th>分数</th>
+                  <th>标签</th>
+                  <th>原因</th>
+                  <th>下一步</th>
+                </tr>
+              </thead>
+              <tbody id="leads-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="data-section" id="activity">
+          <div class="controls-bar">
+            <div>
+              <h3 class="section-title">社区动态</h3>
+              <p class="section-desc">
+                最近消息和知识文件会一起帮助管理者判断社区在讨论什么，以及知识库是否跟得上。
+              </p>
+            </div>
+            <div class="actions">
+              <span class="badge active">实时流</span>
+            </div>
+          </div>
+
+          <div class="split-grid">
+            <div class="panel-box">
+              <h3 class="section-title">最近消息</h3>
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>用户</th>
+                      <th>频道</th>
+                      <th>消息</th>
+                      <th>时间</th>
+                    </tr>
+                  </thead>
+                  <tbody id="messages-body"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel-box">
+              <h3 class="section-title">本地文件与远程 URL</h3>
+              <p>方便运营快速确认知识库里到底有哪些内容已经被导入和索引。</p>
+              <ul class="list-mini" id="knowledge-files-list"></ul>
+              <h3 class="section-title" style="margin-top: 24px;">远程来源</h3>
+              <ul class="list-mini" id="remote-sources-list"></ul>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const notice = document.getElementById("notice");
+
+      function showNotice(message) {
+        notice.textContent = message;
+        notice.classList.add("show");
+        window.clearTimeout(showNotice.timer);
+        showNotice.timer = window.setTimeout(() => {
+          notice.classList.remove("show");
+        }, 3200);
+      }
+
+      function escapeHtml(input) {
+        return String(input ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function formatTime(value) {
+        if (!value) return "暂无";
+        return new Intl.DateTimeFormat("zh-CN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit"
+        }).format(new Date(value));
+      }
+
+      function formatTagList(tags) {
+        if (!tags || tags.length === 0) {
+          return '<span class="badge">无</span>';
+        }
+
+        const tagMeta = {
+          pricing_interest: {
+            label: "价格咨询",
+            description: "用户在问价格、预算、报价或采购相关问题。"
+          },
+          demo_interest: {
+            label: "演示意向",
+            description: "用户想看 demo、演示或产品 walkthrough。"
+          },
+          enterprise_interest: {
+            label: "企业评估",
+            description: "用户提到企业采购、安全、合规或团队落地。"
+          },
+          integration_interest: {
+            label: "接入意向",
+            description: "用户在问部署、API、集成或接入方式。"
+          },
+          trial_interest: {
+            label: "试用意向",
+            description: "用户想试点、试用或做 POC。"
+          },
+          technical_user: {
+            label: "技术用户",
+            description: "用户提的是技术实现、权限、接口或排障细节。"
+          },
+          support_issue: {
+            label: "支持问题",
+            description: "用户在反馈故障、异常、不可用或需要排查的问题。"
+          },
+          community_feedback: {
+            label: "社区反馈",
+            description: "用户给出了反馈、建议或体验层面的意见。"
+          }
+        };
+
+        return tags
+          .map((tag) => {
+            const meta = tagMeta[tag];
+            const label = meta?.label || tag;
+            const title = meta ? `${meta.description}\n原始标签: ${tag}` : `原始标签: ${tag}`;
+            return `<span class="badge tag-badge" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
+          })
+          .join(" ");
+      }
+
+      function formatMessageSource(source) {
+        if (source === "slash_ask") {
+          return '<span class="badge admin">/ask</span>';
+        }
+
+        return '<span class="badge">频道消息</span>';
+      }
+
+      function renderTableBody(targetId, rowsHtml, columnCount = 6) {
+        const target = document.getElementById(targetId);
+        target.innerHTML =
+          rowsHtml || `<tr><td colspan="${columnCount}"><div class="empty-state">暂无数据。</div></td></tr>`;
+      }
+
+      function syncActiveNav() {
+        const navItems = [...document.querySelectorAll(".nav-item")];
+        const currentHash = window.location.hash || "#users";
+
+        navItems.forEach((item) => {
+          const isActive = item.getAttribute("href") === currentHash;
+          item.classList.toggle("active", isActive);
+        });
+      }
+
+      function renderDashboard(payload) {
+        document.getElementById("stat-users").textContent = payload.overview.totalUsers;
+        document.getElementById("stat-messages").textContent = payload.overview.totalMessages;
+        document.getElementById("stat-chunks").textContent = payload.overview.knowledgeChunks;
+        document.getElementById("lead-count-badge").textContent = `${payload.overview.totalLeads} 条线索`;
+
+        renderTableBody(
+          "profiles-body",
+          (payload.profiles || [])
+            .map((profile, index) => `
+              <tr>
+                <td class="script-number">${index + 1}</td>
+                <td>
+                  <strong>${escapeHtml(profile.displayName)}</strong><br />
+                  <span class="muted">@${escapeHtml(profile.username)}</span>
+                </td>
+                <td>${formatTagList(profile.tags)}</td>
+                <td><span class="badge hot">${profile.leadScore}</span></td>
+                <td><span class="badge active">${profile.messageCount} 条消息</span></td>
+                <td>
+                  ${profile.recentMessages && profile.recentMessages.length > 0
+                    ? profile.recentMessages
+                        .map(
+                          (message) =>
+                            `<div>${formatMessageSource(message.source)} <a href="#" class="action-link">${formatTime(message.createdAt)}</a><br />${escapeHtml(message.content)}</div>`
+                        )
+                        .join("<br />")
+                    : '<span class="muted">暂无最近上下文</span>'}
+                </td>
+              </tr>
+            `)
+            .join(""),
+          6
+        );
+
+        renderTableBody(
+          "leads-body",
+          (payload.leads || [])
+            .map((lead, index) => `
+              <tr>
+                <td class="script-number">${index + 1}</td>
+                <td>
+                  <strong>${escapeHtml(lead.username)}</strong><br />
+                  <span class="muted">${formatTime(lead.createdAt)}</span>
+                </td>
+                <td><span class="badge hot">${lead.leadScore}/100</span></td>
+                <td>${formatTagList(lead.tags)}</td>
+                <td>${escapeHtml((lead.reasons || []).join(" | ") || "暂无原因")}</td>
+                <td><a href="#" class="action-link">${escapeHtml(lead.suggestedAction || "查看")}</a></td>
+              </tr>
+            `)
+            .join(""),
+          6
+        );
+
+        renderTableBody(
+          "chunk-sources-body",
+          (payload.knowledge.chunkSources || [])
+            .map(
+              (source, index) => `
+                <tr>
+                  <td>
+                    <strong>${escapeHtml(source.source)}</strong>
+                  </td>
+                  <td class="script-number">${source.chunkCount}</td>
+                  <td>${escapeHtml((source.titles || []).join(" / ") || "未命名")}</td>
+                </tr>
+              `
+            )
+            .join(""),
+          3
+        );
+
+        renderTableBody(
+          "messages-body",
+          (payload.recentMessages || [])
+            .map(
+              (message) => `
+                <tr>
+                  <td><strong>${escapeHtml(message.username)}</strong></td>
+                  <td><span class="badge">${escapeHtml(message.channelId)}</span></td>
+                  <td>${formatMessageSource(message.source)}<br />${escapeHtml(message.content)}</td>
+                  <td>${formatTime(message.createdAt)}</td>
+                </tr>
+              `
+            )
+            .join(""),
+          4
+        );
+
+        const fileList = document.getElementById("knowledge-files-list");
+        const localFiles = payload.knowledge.localFiles || [];
+        fileList.innerHTML = localFiles.length
+          ? localFiles
+              .map(
+                (file) => `
+                  <li>
+                    <strong>${escapeHtml(file.path)}</strong>
+                    <div class="mini-meta">${Math.round(file.sizeBytes / 1024)} KB · ${formatTime(file.updatedAt)}</div>
+                  </li>
+                `
+              )
+              .join("")
+          : '<li class="empty-state">还没有本地文件被索引。</li>';
+
+        const remoteList = document.getElementById("remote-sources-list");
+        const remoteSources = payload.knowledge.remoteSources || [];
+        remoteList.innerHTML = remoteSources.length
+          ? remoteSources
+              .map(
+                (source) => `
+                  <li>
+                    <strong>${escapeHtml(source.title || source.url || source.path || "远程来源")}</strong>
+                    <div class="mini-meta">${escapeHtml(source.url || source.path || "")}</div>
+                  </li>
+                `
+              )
+              .join("")
+          : '<li class="empty-state">还没有配置远程来源。</li>';
+      }
+
+      async function loadDashboard() {
+        const response = await fetch("/admin/api/dashboard");
+        if (!response.ok) {
+          throw new Error("加载后台失败");
+        }
+        renderDashboard(await response.json());
+      }
+
+      document.getElementById("reload-button").addEventListener("click", async () => {
+        const response = await fetch("/admin/api/knowledge/reload", { method: "POST" });
+        const payload = await response.json();
+        showNotice(`知识库已重载，当前共有 ${payload.chunkCount} 个分块。`);
+        await loadDashboard();
+      });
+
+      document.getElementById("upload-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        const response = await fetch("/admin/api/knowledge/upload", {
+          method: "POST",
+          body: formData
+        });
+        const payload = await response.json();
+        showNotice(`已上传 ${payload.uploaded.length} 个文件，当前知识库共有 ${payload.chunkCount} 个分块。`);
+        event.currentTarget.reset();
+        await loadDashboard();
+      });
+
+      document.getElementById("url-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const formData = new FormData(form);
+        const response = await fetch("/admin/api/knowledge/source-url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            url: formData.get("url"),
+            title: formData.get("title")
+          })
+        });
+        const payload = await response.json();
+        showNotice(`远程来源已添加，当前知识库共有 ${payload.chunkCount} 个分块。`);
+        form.reset();
+        await loadDashboard();
+      });
+
+      window.addEventListener("hashchange", syncActiveNav);
+      syncActiveNav();
+
+      loadDashboard().catch((error) => {
+        console.error(error);
+        showNotice("后台加载失败，请刷新后重试。");
+      });
+    </script>
+  </body>
+</html>

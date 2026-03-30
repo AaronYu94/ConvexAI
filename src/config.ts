@@ -82,6 +82,9 @@ export function getConfig(): BotConfig {
     smtpPort: parseIntEnv("SMTP_PORT", 587),
     smtpSecure: parseBoolEnv("SMTP_SECURE", false),
     smtpUser: optionalEnv("SMTP_USER"),
-    smtpPass: optionalEnv("SMTP_PASS")
+    smtpPass: optionalEnv("SMTP_PASS"),
+    adminPort: parseIntEnv("ADMIN_PORT", 3010),
+    adminUsername: optionalEnv("ADMIN_USERNAME"),
+    adminPassword: optionalEnv("ADMIN_PASSWORD")
   };
 }
