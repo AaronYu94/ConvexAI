@@ -15,6 +15,7 @@ create table if not exists messages (
   id text primary key,
   user_id text not null references users(id) on delete cascade,
   username text not null,
+  guild_id text,
   channel_id text not null,
   content text not null,
   created_at timestamptz not null,
@@ -24,17 +25,24 @@ create table if not exists messages (
 alter table messages
   add column if not exists source text not null default 'discord_message';
 
+alter table messages
+  add column if not exists guild_id text;
+
 create table if not exists leads (
   id text primary key,
   user_id text not null references users(id) on delete cascade,
   message_id text not null references messages(id) on delete cascade,
   username text not null,
+  guild_id text,
   lead_score integer not null,
   reasons text[] not null default '{}',
   tags text[] not null default '{}',
   suggested_action text not null,
   created_at timestamptz not null
 );
+
+alter table leads
+  add column if not exists guild_id text;
 
 create table if not exists events (
   id text primary key,

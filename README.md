@@ -53,6 +53,8 @@
 .
 ├── db/
 │   └── schema.sql
+├── config/
+│   └── guilds.example.json
 ├── knowledge/
 │   ├── product-faq.md
 │   └── sources.example.json
@@ -92,19 +94,20 @@
    - `Server Members Intent`
    - `Message Content Intent`
 3. 复制 `.env.example` 为 `.env` 并填写配置。
-4. 安装依赖：
+4. 如果你要同时支持多个 Discord server，复制 `config/guilds.example.json` 为 `config/guilds.json` 并填入每个 server 的频道配置。
+5. 安装依赖：
 
 ```bash
 npm install
 ```
 
-5. 注册斜杠命令：
+6. 注册斜杠命令：
 
 ```bash
 npm run register:commands
 ```
 
-6. 启动项目：
+7. 启动项目：
 
 ```bash
 npm run dev
@@ -125,8 +128,39 @@ npm run dev
 此外，以下场景也会自动回复：
 
 - 用户 mention 机器人
-- 消息出现在 `MONITORED_CHANNEL_IDS` 指定频道
+- 消息出现在 `MONITORED_CHANNEL_IDS` 或多 server 配置里指定的监控频道
 - 用户发送 `!ask ...`
+
+## 多 Server 支持
+
+项目现在支持同一个 bot 同时服务多个 Discord server。
+
+有两种配置方式：
+
+- 简单方式：继续只用 `.env` 里的 `DISCORD_GUILD_ID`、`WELCOME_CHANNEL_ID`、`ALERT_CHANNEL_ID`、`REPORT_CHANNEL_ID`、`MONITORED_CHANNEL_IDS`
+- 推荐方式：在 `.env` 里配置 `DISCORD_GUILD_IDS` 和 `DISCORD_GUILD_CONFIG_FILE`，然后把每个 server 的频道映射写进 `config/guilds.json`
+
+推荐配置示例：
+
+```env
+DISCORD_GUILD_IDS=GUILD_ID_ONE,GUILD_ID_TWO
+DISCORD_GUILD_CONFIG_FILE=./config/guilds.json
+```
+
+`config/guilds.json` 格式参考 [guilds.example.json](/Users/aaronyu/Desktop/ConvexAI/config/guilds.example.json)。
+
+配置完成后重新注册命令：
+
+```bash
+npm run register:commands
+npm run dev
+```
+
+说明：
+
+- 如果配置了 `DISCORD_GUILD_IDS`，机器人会把斜杠命令注册到这些 server
+- 每个 server 可以有独立的欢迎频道、告警频道、报表频道和自动回复频道
+- 如果某个 server 没写单独配置，会自动回退到 `.env` 里的全局频道配置
 
 ## 管理后台
 
@@ -168,6 +202,9 @@ Discord 与 OpenAI：
 - `DISCORD_BOT_TOKEN`
 - `DISCORD_CLIENT_ID`
 - `DISCORD_GUILD_ID`
+- `DISCORD_GUILD_IDS`
+- `DISCORD_GUILD_CONFIG_FILE`
+- `DISCORD_GUILD_CONFIGS`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `ANALYSIS_MODEL`

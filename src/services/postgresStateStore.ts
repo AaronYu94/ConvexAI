@@ -36,6 +36,7 @@ function rowToMessage(row: any): BotMessage {
     id: row.id,
     userId: row.user_id,
     username: row.username,
+    guildId: row.guild_id ?? "legacy",
     channelId: row.channel_id,
     content: row.content,
     createdAt: toIso(row.created_at),
@@ -49,6 +50,7 @@ function rowToLead(row: any): LeadEvent {
     userId: row.user_id,
     messageId: row.message_id,
     username: row.username,
+    guildId: row.guild_id ?? "legacy",
     leadScore: row.lead_score,
     reasons: row.reasons ?? [],
     tags: row.tags ?? [],
@@ -72,7 +74,8 @@ export class PostgresStateStore implements StateStore {
 
   constructor(
     databaseUrl: string,
-    private readonly embeddingDimensions: number
+    private readonly embeddingDimensions: number,
+    private readonly legacyGuildId?: string
   ) {
     this.pool = new Pool({
       connectionString: databaseUrl
@@ -84,6 +87,11 @@ export class PostgresStateStore implements StateStore {
     const schemaTemplate = await readFile(schemaPath, "utf8");
     const schemaSql = schemaTemplate.replace(/__EMBED_DIMENSIONS__/g, String(this.embeddingDimensions));
     await this.pool.query(schemaSql);
+
+    if (this.legacyGuildId) {
+      await this.pool.query("update messages set guild_id = $1 where guild_id is null", [this.legacyGuildId]);
+      await this.pool.query("update leads set guild_id = $1 where guild_id is null", [this.legacyGuildId]);
+    }
   }
 
   async getSnapshot(): Promise<BotState> {
@@ -135,11 +143,28 @@ export class PostgresStateStore implements StateStore {
   async recordMessage(input: MessageInput): Promise<BotMessage> {
     const result = await this.pool.query(
       `
-        insert into messages (id, user_id, username, channel_id, content, created_at, source)
-        values ($1, $2, $3, $4, $5, $6, $7)
+        insert into messages (id, user_id, username, guild_id, channel_id, content, created_at, source)
+        values ($1, $2, $3, $4, $5, $6, $7, $8)
+        on conflict (id) do update
+        set user_id = excluded.user_id,
+            username = excluded.username,
+            guild_id = excluded.guild_id,
+            channel_id = excluded.channel_id,
+            content = excluded.content,
+            created_at = excluded.created_at,
+            source = excluded.source
         returning *
       `,
-      [input.id, input.userId, input.username, input.channelId, input.content, input.createdAt, input.source ?? "discord_message"]
+      [
+        input.id,
+        input.userId,
+        input.username,
+        input.guildId,
+        input.channelId,
+        input.content,
+        input.createdAt,
+        input.source ?? "discord_message"
+      ]
     );
 
     return rowToMessage(result.rows[0]);
@@ -167,15 +192,31 @@ export class PostgresStateStore implements StateStore {
     return result.rows[0] ? rowToUser(result.rows[0]) : undefined;
   }
 
+  async setUserSignals(userId: string, tags: string[], leadScore: number): Promise<BotUser | undefined> {
+    const result = await this.pool.query(
+      `
+        update users
+        set tags = $2::text[],
+            lead_score = $3,
+            last_seen_at = $4
+        where id = $1
+        returning *
+      `,
+      [userId, [...new Set(tags)].sort(), Math.max(0, leadScore), new Date().toISOString()]
+    );
+
+    return result.rows[0] ? rowToUser(result.rows[0]) : undefined;
+  }
+
   async recordLead(input: LeadInput): Promise<LeadEvent> {
     const id = randomUUID();
     const createdAt = new Date().toISOString();
     const result = await this.pool.query(
       `
         insert into leads (
-          id, user_id, message_id, username, lead_score, reasons, tags, suggested_action, created_at
+          id, user_id, message_id, username, guild_id, lead_score, reasons, tags, suggested_action, created_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         returning *
       `,
       [
@@ -183,6 +224,7 @@ export class PostgresStateStore implements StateStore {
         input.userId,
         input.messageId,
         input.username,
+        input.guildId,
         input.leadScore,
         input.reasons,
         input.tags,

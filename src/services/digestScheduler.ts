@@ -1,5 +1,6 @@
 import type { Client } from "discord.js";
 import type { BotConfig, StateStore } from "../types";
+import { getAllReportChannelIds } from "../guildConfig";
 import { AlertService } from "./alerts";
 import { buildDailyReport, buildWeeklyReport } from "./reporting";
 
@@ -62,7 +63,7 @@ export class DigestScheduler {
   }
 
   private async tick(client: Client): Promise<void> {
-    if (!this.config.reportChannelId && !this.config.slackWebhookUrl && !this.config.alertEmailTo) {
+    if (getAllReportChannelIds(this.config).length === 0 && !this.config.slackWebhookUrl && !this.config.alertEmailTo) {
       return;
     }
 

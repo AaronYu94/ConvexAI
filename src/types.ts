@@ -1,7 +1,17 @@
+export interface GuildChannelConfig {
+  guildId: string;
+  name?: string;
+  welcomeChannelId?: string;
+  alertChannelId?: string;
+  reportChannelId?: string;
+  monitoredChannelIds: string[];
+}
+
 export interface BotConfig {
   discordToken: string;
   discordClientId: string;
   discordGuildId?: string;
+  discordGuildIds: string[];
   openAiApiKey?: string;
   openAiModel: string;
   analysisModel: string;
@@ -31,6 +41,8 @@ export interface BotConfig {
   adminPort: number;
   adminUsername?: string;
   adminPassword?: string;
+  guildConfigFile?: string;
+  guildConfigs: Record<string, GuildChannelConfig>;
 }
 
 export interface BotUser {
@@ -48,6 +60,7 @@ export interface BotMessage {
   id: string;
   userId: string;
   username: string;
+  guildId: string;
   channelId: string;
   content: string;
   createdAt: string;
@@ -59,6 +72,7 @@ export interface LeadEvent {
   userId: string;
   messageId: string;
   username: string;
+  guildId: string;
   leadScore: number;
   reasons: string[];
   tags: string[];
@@ -92,6 +106,7 @@ export interface MessageInput {
   id: string;
   userId: string;
   username: string;
+  guildId: string;
   channelId: string;
   content: string;
   createdAt: string;
@@ -102,6 +117,7 @@ export interface LeadInput {
   userId: string;
   messageId: string;
   username: string;
+  guildId: string;
   leadScore: number;
   reasons: string[];
   tags: string[];
@@ -115,6 +131,7 @@ export interface StateStore {
   upsertUser(input: UserIdentityInput): Promise<BotUser>;
   recordMessage(input: MessageInput): Promise<BotMessage>;
   updateUserSignals(userId: string, tags: string[], leadScore: number): Promise<BotUser | undefined>;
+  setUserSignals(userId: string, tags: string[], leadScore: number): Promise<BotUser | undefined>;
   recordLead(input: LeadInput): Promise<LeadEvent>;
   recordEvent(type: string, metadata: Record<string, unknown>, userId?: string): Promise<BotEvent>;
   close(): Promise<void>;

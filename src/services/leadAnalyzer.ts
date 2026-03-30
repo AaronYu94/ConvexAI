@@ -1,5 +1,5 @@
 import type { BotConfig, LeadScoreResult } from "../types";
-import { scoreLeadIntent } from "./leadScorer";
+import { canonicalizeLeadTags, scoreLeadIntent } from "./leadScorer";
 
 function extractOutputText(payload: any): string {
   if (typeof payload?.output_text === "string" && payload.output_text.trim()) {
@@ -43,7 +43,7 @@ function normalizeResult(payload: any, fallback: LeadScoreResult): LeadScoreResu
     ? payload.reasons.filter((reason: unknown): reason is string => typeof reason === "string")
     : [];
   const llmScore = typeof payload.score === "number" ? Math.max(0, Math.min(100, Math.round(payload.score))) : 0;
-  const combinedTags = [...new Set([...fallback.tags, ...llmTags])];
+  const combinedTags = canonicalizeLeadTags([...fallback.tags, ...llmTags], Math.max(fallback.score, llmScore));
   const combinedReasons = [...new Set([...fallback.reasons, ...llmReasons])];
   const score = Math.max(fallback.score, llmScore);
 
@@ -79,7 +79,7 @@ export class LeadAnalyzer {
 
     const instructions = [
       "You classify Discord messages for community ops and sales follow-up.",
-      "Detect intent tags such as pricing_interest, demo_interest, enterprise_interest, integration_interest, technical_user, support_issue, community_feedback.",
+      "Detect operational tags such as high_intent, ready_to_grow, support_issue, needs_your_call, community_feedback, event_candidate, needs_followup.",
       "Return strict JSON with keys: score, tags, reasons, shouldNotify, suggestedAction, summary, confidence.",
       "Score must be 0-100. shouldNotify should be true only for meaningful lead or urgent support follow-up."
     ].join(" ");

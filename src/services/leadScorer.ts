@@ -49,24 +49,101 @@ const LEAD_RULES: LeadRule[] = [
     points: 10,
     reason: "Raised a support or debugging issue.",
     patterns: [/\bissue\b/i, /\berror\b/i, /\bnot working\b/i, /\bfailed\b/i, /无法/, /不工作/, /出错/, /异常/]
+  },
+  {
+    tag: "community_feedback",
+    points: 12,
+    reason: "Shared product or community feedback.",
+    patterns: [/\bfeedback\b/i, /\bfeature request\b/i, /\brequest\b/i, /\bsuggestion\b/i, /\bwishlist\b/i, /建议/, /反馈/, /希望增加/, /能不能/, /吐槽/]
+  },
+  {
+    tag: "event_candidate",
+    points: 8,
+    reason: "Mentioned a campaign or activity submission.",
+    patterns: [/\bgiveaway\b/i, /\bcontest\b/i, /\bsubmission\b/i, /\bsubmit\b/i, /\bentry\b/i, /活动/, /抽奖/, /投稿/, /提交/, /参赛/, /报名/]
   }
 ];
 
+const HIGH_INTENT_SOURCE_TAGS = ["pricing_interest", "demo_interest", "enterprise_interest", "trial_interest"];
+
+export function canonicalizeLeadTags(inputTags: string[], score = 0): string[] {
+  const tags = new Set<string>();
+  const sourceTags = new Set(inputTags);
+
+  if (HIGH_INTENT_SOURCE_TAGS.some((tag) => sourceTags.has(tag)) || sourceTags.has("high_intent")) {
+    tags.add("high_intent");
+  }
+
+  if (
+    sourceTags.has("integration_interest") ||
+    sourceTags.has("technical_user") ||
+    sourceTags.has("ready_to_grow")
+  ) {
+    tags.add("ready_to_grow");
+  }
+
+  if (sourceTags.has("support_issue")) {
+    tags.add("support_issue");
+    tags.add("needs_your_call");
+  }
+
+  if (sourceTags.has("community_feedback")) {
+    tags.add("community_feedback");
+  }
+
+  if (sourceTags.has("event_candidate")) {
+    tags.add("event_candidate");
+  }
+
+  if (sourceTags.has("spam_risk")) {
+    tags.add("spam_risk");
+  }
+
+  if (sourceTags.has("needs_human_review") || sourceTags.has("needs_your_call")) {
+    tags.add("needs_your_call");
+  }
+
+  if (sourceTags.has("needs_followup") || tags.has("high_intent") || score >= 40) {
+    tags.add("needs_followup");
+  }
+
+  const passthroughTags = ["core_member", "active_user", "community_member", "going_cold"];
+  for (const tag of passthroughTags) {
+    if (sourceTags.has(tag)) {
+      tags.add(tag);
+    }
+  }
+
+  return [...tags];
+}
+
 function getSuggestedAction(tags: string[]): string {
-  if (tags.includes("demo_interest")) {
-    return "Offer a demo booking link and notify sales.";
+  if (tags.includes("spam_risk")) {
+    return "Remove or review the message and decide whether the sender should be restricted.";
   }
 
-  if (tags.includes("pricing_interest") || tags.includes("enterprise_interest")) {
-    return "Route to a human for pricing or enterprise follow-up.";
+  if (tags.includes("event_candidate")) {
+    return "Review the activity submission and keep only entries that match the campaign rules.";
   }
 
-  if (tags.includes("integration_interest")) {
-    return "Have a solutions or product teammate answer deployment questions.";
+  if (tags.includes("needs_your_call")) {
+    return "Collect the needed debugging details and route the case to support or engineering.";
   }
 
-  if (tags.includes("support_issue")) {
-    return "Route to support or product engineering for follow-up.";
+  if (tags.includes("high_intent")) {
+    return "Flag this user for human follow-up on demo, pricing, or purchase intent.";
+  }
+
+  if (tags.includes("ready_to_grow")) {
+    return "Guide the user through setup, integration, or rollout so they can adopt the product smoothly.";
+  }
+
+  if (tags.includes("going_cold")) {
+    return "Nudge this member before interest fades further and decide whether a human should step in.";
+  }
+
+  if (tags.includes("community_feedback")) {
+    return "Capture the feedback and decide whether product or community ops should respond.";
   }
 
   return "Monitor this user and follow up if they ask again.";
@@ -85,7 +162,7 @@ export function scoreLeadIntent(messageContent: string): LeadScoreResult {
     }
   }
 
-  const dedupedTags = [...new Set(tags)];
+  const dedupedTags = canonicalizeLeadTags([...new Set(tags)], score);
   const dedupedReasons = [...new Set(reasons)];
   const shouldNotify = score >= 40;
 

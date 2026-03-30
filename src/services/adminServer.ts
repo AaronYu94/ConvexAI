@@ -2,7 +2,9 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
-import type { BotConfig, BotMessage, BotState, StateStore } from "../types";
+import { getConfiguredGuildIds } from "../guildConfig";
+import type { BotConfig, BotEvent, BotMessage, BotState, LeadEvent, StateStore } from "../types";
+import { canonicalizeLeadTags, scoreLeadIntent } from "./leadScorer";
 import { KnowledgeEngine } from "./knowledgeEngine";
 
 interface DashboardUserProfile {
@@ -18,9 +20,18 @@ interface DashboardUserProfile {
   recentMessages: Array<{
     createdAt: string;
     content: string;
+    guildId: string;
     channelId: string;
     source: BotMessage["source"];
   }>;
+}
+
+interface DashboardGuildSummary {
+  guildId: string;
+  label: string;
+  totalUsers: number;
+  totalMessages: number;
+  totalLeads: number;
 }
 
 function clip(input: string, maxLength = 180): string {
@@ -30,6 +41,70 @@ function clip(input: string, maxLength = 180): string {
   }
 
   return `${normalized.slice(0, maxLength - 1)}...`;
+}
+
+function deriveEngagementTags(messageCount: number): string[] {
+  if (messageCount >= 20) {
+    return ["core_member", "active_user"];
+  }
+
+  if (messageCount >= 5) {
+    return ["active_user"];
+  }
+
+  if (messageCount >= 1) {
+    return ["community_member"];
+  }
+
+  return [];
+}
+
+function countMessagesInWindow(timestamps: number[], anchorTime: number, startDaysAgo: number, endDaysAgo = 0): number {
+  const start = anchorTime - startDaysAgo * 24 * 60 * 60 * 1000;
+  const end = anchorTime - endDaysAgo * 24 * 60 * 60 * 1000;
+  return timestamps.filter((timestamp) => timestamp > start && timestamp <= end).length;
+}
+
+function deriveLifecycleTags(userMessages: BotMessage[], baseTags: string[], guildLatestAt: number): string[] {
+  if (userMessages.length === 0 || guildLatestAt === 0) {
+    return [];
+  }
+
+  const timestamps = userMessages
+    .map((message) => Date.parse(message.createdAt))
+    .filter((value) => Number.isFinite(value))
+    .sort((left, right) => left - right);
+
+  if (timestamps.length === 0) {
+    return [];
+  }
+
+  const tags = new Set<string>();
+  const latestUserAt = timestamps[timestamps.length - 1];
+  const previous7Days = countMessagesInWindow(timestamps, guildLatestAt, 14, 7);
+  const recent7Days = countMessagesInWindow(timestamps, guildLatestAt, 7, 0);
+  const recent3Days = countMessagesInWindow(timestamps, guildLatestAt, 3, 0);
+  const daysSinceLastSeen = Math.floor((guildLatestAt - latestUserAt) / (24 * 60 * 60 * 1000));
+
+  const isGoingCold =
+    (previous7Days >= 3 && recent7Days <= Math.max(1, Math.floor(previous7Days * 0.4))) ||
+    (userMessages.length >= 10 && daysSinceLastSeen >= 7);
+
+  if (isGoingCold) {
+    tags.add("going_cold");
+    tags.add("needs_followup");
+  }
+
+  const isReadyToGrow =
+    baseTags.includes("ready_to_grow") ||
+    baseTags.includes("high_intent") ||
+    (userMessages.length >= 5 && recent3Days >= 3 && recent7Days >= previous7Days + 2 && daysSinceLastSeen <= 3);
+
+  if (isReadyToGrow && !tags.has("going_cold")) {
+    tags.add("ready_to_grow");
+  }
+
+  return [...tags];
 }
 
 function unauthorized(res: Response): void {
@@ -138,26 +213,161 @@ async function appendRemoteSource(manifestPath: string, url: string, title?: str
   );
 }
 
-function buildProfiles(state: BotState): DashboardUserProfile[] {
-  return Object.values(state.users)
-    .map((user) => {
-      const userMessages = state.messages
-        .filter((message) => message.userId === user.id)
-        .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+function getEventGuildId(event: BotEvent): string | undefined {
+  const guildId = event.metadata.guildId;
+  return typeof guildId === "string" && guildId.trim() ? guildId : undefined;
+}
+
+function filterMessagesByGuild(messages: BotMessage[], guildId?: string): BotMessage[] {
+  if (!guildId) {
+    return messages;
+  }
+
+  return messages.filter((message) => message.guildId === guildId);
+}
+
+function filterLeadsByGuild(leads: LeadEvent[], guildId?: string): LeadEvent[] {
+  if (!guildId) {
+    return leads;
+  }
+
+  return leads.filter((lead) => lead.guildId === guildId);
+}
+
+function filterEventsByGuild(events: BotEvent[], guildId?: string): BotEvent[] {
+  if (!guildId) {
+    return events;
+  }
+
+  return events.filter((event) => getEventGuildId(event) === guildId);
+}
+
+function buildGuildSummaries(state: BotState, config: BotConfig): DashboardGuildSummary[] {
+  const configuredGuildIds = getConfiguredGuildIds(config);
+  const guildIds = new Set<string>(configuredGuildIds);
+
+  for (const message of state.messages) {
+    guildIds.add(message.guildId);
+  }
+
+  for (const lead of state.leads) {
+    guildIds.add(lead.guildId);
+  }
+
+  for (const event of state.events) {
+    const guildId = getEventGuildId(event);
+    if (guildId) {
+      guildIds.add(guildId);
+    }
+  }
+
+  const configuredOrder = new Map(configuredGuildIds.map((guildId, index) => [guildId, index]));
+
+  return [...guildIds]
+    .filter(Boolean)
+    .map((guildId) => {
+      const messages = filterMessagesByGuild(state.messages, guildId);
+      const leads = filterLeadsByGuild(state.leads, guildId);
+      const events = filterEventsByGuild(state.events, guildId);
+      const userIds = new Set<string>();
+
+      for (const message of messages) {
+        userIds.add(message.userId);
+      }
+
+      for (const lead of leads) {
+        userIds.add(lead.userId);
+      }
+
+      for (const event of events) {
+        if (event.userId) {
+          userIds.add(event.userId);
+        }
+      }
 
       return {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        joinedAt: user.joinedAt,
-        firstSeenAt: user.firstSeenAt,
-        lastSeenAt: user.lastSeenAt,
-        tags: user.tags,
-        leadScore: user.leadScore,
+        guildId,
+        label: config.guildConfigs[guildId]?.name ?? guildId,
+        totalUsers: userIds.size,
+        totalMessages: messages.length,
+        totalLeads: leads.length
+      };
+    })
+    .sort((left, right) => {
+      const leftOrder = configuredOrder.get(left.guildId);
+      const rightOrder = configuredOrder.get(right.guildId);
+      if (leftOrder !== undefined && rightOrder !== undefined) {
+        return leftOrder - rightOrder;
+      }
+      if (leftOrder !== undefined) {
+        return -1;
+      }
+      if (rightOrder !== undefined) {
+        return 1;
+      }
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function buildProfiles(state: BotState, guildId?: string): DashboardUserProfile[] {
+  const messages = filterMessagesByGuild(state.messages, guildId);
+  const leads = filterLeadsByGuild(state.leads, guildId);
+  const events = filterEventsByGuild(state.events, guildId);
+  const guildLatestAt = messages.reduce((maxTimestamp, message) => {
+    const currentTimestamp = Date.parse(message.createdAt);
+    return Number.isFinite(currentTimestamp) ? Math.max(maxTimestamp, currentTimestamp) : maxTimestamp;
+  }, 0);
+  const candidateUserIds = new Set<string>();
+
+  for (const message of messages) {
+    candidateUserIds.add(message.userId);
+  }
+
+  for (const lead of leads) {
+    candidateUserIds.add(lead.userId);
+  }
+
+  for (const event of events) {
+    if (event.userId) {
+      candidateUserIds.add(event.userId);
+    }
+  }
+
+  return [...candidateUserIds]
+    .map((userId) => {
+      const user = state.users[userId];
+      const userMessages = messages
+        .filter((message) => message.userId === userId)
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+      const userLeads = leads.filter((lead) => lead.userId === userId);
+      const fallbackUsername = userMessages[0]?.username ?? userLeads[0]?.username ?? userId;
+      const derivedTags = canonicalizeLeadTags(userLeads.flatMap((lead) => lead.tags));
+      const derivedLeadScore = userLeads.reduce((maxScore, lead) => Math.max(maxScore, lead.leadScore), 0);
+      const messageAnalyses = userMessages.map((message) => scoreLeadIntent(message.content));
+      const messageLeadScore = messageAnalyses.reduce((maxScore, analysis) => Math.max(maxScore, analysis.score), 0);
+      const messageDerivedTags = canonicalizeLeadTags(messageAnalyses.flatMap((analysis) => analysis.tags), messageLeadScore);
+      const firstSeenAt = userMessages[userMessages.length - 1]?.createdAt ?? user?.firstSeenAt ?? new Date(0).toISOString();
+      const lastSeenAt = userMessages[0]?.createdAt ?? user?.lastSeenAt ?? new Date(0).toISOString();
+      const fallbackTags = canonicalizeLeadTags(user?.tags ?? [], user?.leadScore ?? 0);
+      const engagementTags = deriveEngagementTags(userMessages.length);
+      const contentTags = derivedTags.length > 0 ? derivedTags : messageDerivedTags.length > 0 ? messageDerivedTags : fallbackTags;
+      const lifecycleTags = deriveLifecycleTags(userMessages, contentTags, guildLatestAt);
+      const contentLeadScore = derivedLeadScore > 0 ? derivedLeadScore : messageLeadScore;
+
+      return {
+        id: userId,
+        username: user?.username ?? fallbackUsername,
+        displayName: user?.displayName ?? fallbackUsername,
+        joinedAt: user?.joinedAt,
+        firstSeenAt,
+        lastSeenAt,
+        tags: [...new Set([...contentTags, ...lifecycleTags, ...engagementTags])],
+        leadScore: contentLeadScore > 0 ? contentLeadScore : user?.leadScore ?? 0,
         messageCount: userMessages.length,
         recentMessages: userMessages.slice(0, 3).map((message) => ({
           createdAt: message.createdAt,
           content: clip(message.content, 200),
+          guildId: message.guildId,
           channelId: message.channelId,
           source: message.source
         }))
@@ -171,28 +381,48 @@ function buildProfiles(state: BotState): DashboardUserProfile[] {
     });
 }
 
-function buildOverview(state: BotState, knowledge: KnowledgeEngine) {
-  const lastLead = state.leads.slice(-1)[0];
-  const lastMessage = state.messages.slice(-1)[0];
+function buildOverview(state: BotState, knowledge: KnowledgeEngine, guildId?: string) {
+  const messages = filterMessagesByGuild(state.messages, guildId);
+  const leads = filterLeadsByGuild(state.leads, guildId);
+  const events = filterEventsByGuild(state.events, guildId);
+  const userIds = new Set<string>();
+
+  for (const message of messages) {
+    userIds.add(message.userId);
+  }
+
+  for (const lead of leads) {
+    userIds.add(lead.userId);
+  }
+
+  for (const event of events) {
+    if (event.userId) {
+      userIds.add(event.userId);
+    }
+  }
+
+  const lastLead = leads.slice(-1)[0];
+  const lastMessage = messages.slice(-1)[0];
 
   return {
-    totalUsers: Object.keys(state.users).length,
-    totalMessages: state.messages.length,
-    totalLeads: state.leads.length,
-    totalEvents: state.events.length,
+    totalUsers: userIds.size,
+    totalMessages: messages.length,
+    totalLeads: leads.length,
+    totalEvents: events.length,
     knowledgeChunks: knowledge.getChunkCount(),
     lastLeadAt: lastLead?.createdAt,
     lastMessageAt: lastMessage?.createdAt
   };
 }
 
-function buildRecentMessages(messages: BotMessage[]) {
-  return [...messages]
+function buildRecentMessages(messages: BotMessage[], guildId?: string) {
+  return [...filterMessagesByGuild(messages, guildId)]
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .slice(0, 25)
     .map((message) => ({
       id: message.id,
       username: message.username,
+      guildId: message.guildId,
       channelId: message.channelId,
       createdAt: message.createdAt,
       content: clip(message.content, 220),
@@ -255,22 +485,32 @@ export class AdminServer {
 
     app.get("/admin/api/dashboard", async (_req, res) => {
       const snapshot = await this.store.getSnapshot();
-      const profiles = buildProfiles(snapshot);
+      const guilds = buildGuildSummaries(snapshot, this.config);
+      const requestedGuildId = typeof _req.query.guildId === "string" ? _req.query.guildId.trim() : "";
+      const selectedGuildId =
+        guilds.find((guild) => guild.guildId === requestedGuildId)?.guildId ?? guilds[0]?.guildId;
+      const profiles = buildProfiles(snapshot, selectedGuildId);
       const localFiles = await listKnowledgeFiles(this.config.knowledgeDir);
       const manifestSources = await readKnowledgeManifest(this.config.knowledgeSourcesFile);
 
       res.json({
-        overview: buildOverview(snapshot, this.knowledge),
+        guilds,
+        selectedGuildId,
+        overview: buildOverview(snapshot, this.knowledge, selectedGuildId),
         knowledge: {
           chunkSources: this.knowledge.getChunkSourceSummary(),
           localFiles,
           remoteSources: manifestSources
         },
         profiles: profiles.slice(0, 100),
-        leads: [...snapshot.leads]
+        leads: [...filterLeadsByGuild(snapshot.leads, selectedGuildId)]
+          .map((lead) => ({
+            ...lead,
+            tags: canonicalizeLeadTags(lead.tags, lead.leadScore)
+          }))
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
           .slice(0, 50),
-        recentMessages: buildRecentMessages(snapshot.messages)
+        recentMessages: buildRecentMessages(snapshot.messages, selectedGuildId)
       });
     });
 

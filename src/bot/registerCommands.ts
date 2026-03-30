@@ -1,5 +1,6 @@
 import { REST, Routes, SlashCommandBuilder } from "discord.js";
 import { getConfig } from "../config";
+import { getConfiguredGuildIds } from "../guildConfig";
 
 async function main(): Promise<void> {
   const config = getConfig();
@@ -26,13 +27,15 @@ async function main(): Promise<void> {
   ].map((command) => command.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(config.discordToken);
+  const guildIds = getConfiguredGuildIds(config);
 
-  if (config.discordGuildId) {
-    await rest.put(Routes.applicationGuildCommands(config.discordClientId, config.discordGuildId), {
-      body: commands
-    });
-
-    console.log(`Registered guild commands for ${config.discordGuildId}.`);
+  if (guildIds.length > 0) {
+    for (const guildId of guildIds) {
+      await rest.put(Routes.applicationGuildCommands(config.discordClientId, guildId), {
+        body: commands
+      });
+      console.log(`Registered guild commands for ${guildId}.`);
+    }
     return;
   }
 

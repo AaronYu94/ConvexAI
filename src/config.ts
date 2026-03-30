@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { config as loadEnv } from "dotenv";
-import type { BotConfig } from "./types";
+import type { BotConfig, GuildChannelConfig } from "./types";
 
 loadEnv();
 
@@ -52,11 +53,79 @@ function parseBoolEnv(name: string, fallback: boolean): boolean {
   return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 }
 
+function normalizeGuildConfig(input: Partial<GuildChannelConfig> & { guildId: string }): GuildChannelConfig {
+  return {
+    guildId: input.guildId.trim(),
+    name: input.name?.trim() || undefined,
+    welcomeChannelId: input.welcomeChannelId?.trim() || undefined,
+    alertChannelId: input.alertChannelId?.trim() || undefined,
+    reportChannelId: input.reportChannelId?.trim() || undefined,
+    monitoredChannelIds: Array.isArray(input.monitoredChannelIds)
+      ? input.monitoredChannelIds.map((channelId) => channelId.trim()).filter(Boolean)
+      : []
+  };
+}
+
+function parseGuildConfigs(raw: string, sourceLabel: string): GuildChannelConfig[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      throw new Error(`${sourceLabel} must be a JSON array.`);
+    }
+
+    return parsed
+      .filter((entry): entry is Partial<GuildChannelConfig> & { guildId: string } => {
+        return Boolean(entry && typeof entry === "object" && typeof (entry as { guildId?: unknown }).guildId === "string");
+      })
+      .map(normalizeGuildConfig);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown parse error";
+    throw new Error(`Failed to parse ${sourceLabel}: ${message}`);
+  }
+}
+
+function loadGuildConfigs(): { guildConfigFile?: string; guildConfigs: Record<string, GuildChannelConfig> } {
+  const guildConfigFile = optionalEnv("DISCORD_GUILD_CONFIG_FILE");
+  const envGuildConfigs = optionalEnv("DISCORD_GUILD_CONFIGS");
+  const loadedConfigs: GuildChannelConfig[] = [];
+
+  if (guildConfigFile) {
+    const resolvedPath = path.resolve(process.cwd(), guildConfigFile);
+    const fileContents = readFileSync(resolvedPath, "utf8");
+    loadedConfigs.push(...parseGuildConfigs(fileContents, `DISCORD_GUILD_CONFIG_FILE (${resolvedPath})`));
+  }
+
+  if (envGuildConfigs) {
+    loadedConfigs.push(...parseGuildConfigs(envGuildConfigs, "DISCORD_GUILD_CONFIGS"));
+  }
+
+  const guildConfigs: Record<string, GuildChannelConfig> = {};
+  for (const guildConfig of loadedConfigs) {
+    guildConfigs[guildConfig.guildId] = guildConfig;
+  }
+
+  return {
+    guildConfigFile: guildConfigFile ? path.resolve(process.cwd(), guildConfigFile) : undefined,
+    guildConfigs
+  };
+}
+
 export function getConfig(): BotConfig {
+  const { guildConfigFile, guildConfigs } = loadGuildConfigs();
+  const configuredGuildIds = new Set<string>([
+    ...parseCsv(optionalEnv("DISCORD_GUILD_IDS")),
+    ...Object.keys(guildConfigs)
+  ]);
+  const legacyGuildId = optionalEnv("DISCORD_GUILD_ID");
+  if (legacyGuildId) {
+    configuredGuildIds.add(legacyGuildId);
+  }
+
   return {
     discordToken: requireEnv("DISCORD_BOT_TOKEN"),
     discordClientId: requireEnv("DISCORD_CLIENT_ID"),
-    discordGuildId: optionalEnv("DISCORD_GUILD_ID"),
+    discordGuildId: legacyGuildId,
+    discordGuildIds: [...configuredGuildIds],
     openAiApiKey: optionalEnv("OPENAI_API_KEY"),
     openAiModel: optionalEnv("OPENAI_MODEL") ?? "gpt-4.1-mini",
     analysisModel: optionalEnv("ANALYSIS_MODEL") ?? optionalEnv("OPENAI_MODEL") ?? "gpt-4.1-mini",
@@ -85,6 +154,8 @@ export function getConfig(): BotConfig {
     smtpPass: optionalEnv("SMTP_PASS"),
     adminPort: parseIntEnv("ADMIN_PORT", 3010),
     adminUsername: optionalEnv("ADMIN_USERNAME"),
-    adminPassword: optionalEnv("ADMIN_PASSWORD")
+    adminPassword: optionalEnv("ADMIN_PASSWORD"),
+    guildConfigFile,
+    guildConfigs
   };
 }

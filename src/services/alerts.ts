@@ -1,6 +1,7 @@
 import { ChannelType, Client, TextChannel } from "discord.js";
 import nodemailer from "nodemailer";
 import type { BotConfig, LeadScoreResult } from "../types";
+import { getAllReportChannelIds, getGuildConfig } from "../guildConfig";
 
 function clip(input: string, maxLength = 1900): string {
   if (input.length <= maxLength) {
@@ -26,10 +27,12 @@ export class AlertService {
 
   async sendLeadAlert(
     client: Client,
+    guildId: string,
     username: string,
     messageContent: string,
     analysis: LeadScoreResult
   ): Promise<void> {
+    const guildConfig = getGuildConfig(this.config, guildId);
     const body = [
       "High-intent user detected",
       `User: ${username}`,
@@ -42,7 +45,7 @@ export class AlertService {
     ].join("\n");
 
     await Promise.all([
-      this.sendDiscordMessage(client, this.config.alertChannelId, body),
+      this.sendDiscordMessage(client, guildConfig.alertChannelId, body),
       this.sendSlackMessage(`*Lead alert*\n${body.replace(/\n/g, "\n> ")}`),
       this.sendEmail("Community bot lead alert", body)
     ]);
@@ -50,8 +53,9 @@ export class AlertService {
 
   async sendReport(client: Client, title: string, reportBody: string): Promise<void> {
     const body = `${title}\n\n${reportBody}`;
+    const reportChannelIds = getAllReportChannelIds(this.config);
     await Promise.all([
-      this.sendDiscordMessage(client, this.config.reportChannelId, body),
+      ...reportChannelIds.map((channelId) => this.sendDiscordMessage(client, channelId, body)),
       this.sendSlackMessage(`*${title}*\n${reportBody.replace(/\n/g, "\n> ")}`),
       this.sendEmail(title, reportBody)
     ]);

@@ -8,6 +8,7 @@ import {
   TextChannel
 } from "discord.js";
 import { getConfig } from "./config";
+import { getGuildConfig } from "./guildConfig";
 import { AlertService } from "./services/alerts";
 import { AdminServer } from "./services/adminServer";
 import { DigestScheduler } from "./services/digestScheduler";
@@ -86,6 +87,8 @@ async function main(): Promise<void> {
   await adminServer.start();
 
   client.on(Events.GuildMemberAdd, async (member) => {
+    const guildConfig = getGuildConfig(config, member.guild.id);
+
     await store.upsertUser({
       id: member.id,
       username: member.user.username,
@@ -101,11 +104,11 @@ async function main(): Promise<void> {
       member.id
     );
 
-    if (!config.welcomeChannelId) {
+    if (!guildConfig.welcomeChannelId) {
       return;
     }
 
-    const channel = await member.guild.channels.fetch(config.welcomeChannelId);
+    const channel = await member.guild.channels.fetch(guildConfig.welcomeChannelId);
     if (!channel || channel.type !== ChannelType.GuildText) {
       return;
     }
@@ -165,6 +168,7 @@ async function main(): Promise<void> {
         id: `slash-${interaction.id}`,
         userId: interaction.user.id,
         username: interaction.user.username,
+        guildId: interaction.guildId ?? "unknown",
         channelId: interaction.channelId,
         content: question,
         createdAt: interaction.createdAt.toISOString(),
@@ -175,6 +179,7 @@ async function main(): Promise<void> {
         "slash_question_received",
         {
           question,
+          guildId: interaction.guildId,
           channelId: interaction.channelId
         },
         interaction.user.id
@@ -186,6 +191,7 @@ async function main(): Promise<void> {
 
       await store.recordEvent("slash_answer_sent", {
         question,
+        guildId: interaction.guildId,
         usedFallback: answer.usedFallback,
         resultCount: results.length
       });
@@ -220,6 +226,7 @@ async function main(): Promise<void> {
       id: message.id || randomUUID(),
       userId: message.author.id,
       username: message.author.username,
+      guildId: message.guild.id,
       channelId: message.channelId,
       content: message.content,
       createdAt: message.createdAt.toISOString(),
@@ -228,6 +235,8 @@ async function main(): Promise<void> {
 
     const moderation = moderateMessage(message.content);
     if (moderation.shouldBlock) {
+      await store.updateUserSignals(message.author.id, ["spam_risk"], 0);
+
       try {
         await message.delete();
       } catch {
@@ -237,6 +246,7 @@ async function main(): Promise<void> {
       await store.recordEvent(
         "moderation_blocked",
         {
+          guildId: message.guild.id,
           messageId: message.id,
           reason: moderation.reason
         },
@@ -259,6 +269,7 @@ async function main(): Promise<void> {
         userId: message.author.id,
         messageId: storedMessage.id,
         username: message.author.username,
+        guildId: message.guild.id,
         leadScore: analysis.score,
         reasons: analysis.reasons,
         tags: analysis.tags,
@@ -269,6 +280,7 @@ async function main(): Promise<void> {
         "lead_detected",
         {
           leadId: lead.id,
+          guildId: message.guild.id,
           messageId: message.id,
           tags: lead.tags,
           source: analysis.source,
@@ -277,11 +289,12 @@ async function main(): Promise<void> {
         message.author.id
       );
 
-      await alerts.sendLeadAlert(client, message.author.username, message.content, analysis);
+      await alerts.sendLeadAlert(client, message.guild.id, message.author.username, message.content, analysis);
     }
 
     const botUserId = client.user?.id;
-    if (!botUserId || !shouldAutoAnswer(message, config.monitoredChannelIds, botUserId)) {
+    const guildConfig = getGuildConfig(config, message.guild.id);
+    if (!botUserId || !shouldAutoAnswer(message, guildConfig.monitoredChannelIds, botUserId)) {
       return;
     }
 
@@ -298,6 +311,7 @@ async function main(): Promise<void> {
       "message_answer_sent",
       {
         question,
+        guildId: message.guild.id,
         usedFallback: answer.usedFallback,
         resultCount: results.length
       },

@@ -24,7 +24,10 @@ export class JsonStateStore implements StateStore {
   private state: BotState = structuredClone(EMPTY_STATE);
   private writeQueue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly filePath: string) {}
+  constructor(
+    private readonly filePath: string,
+    private readonly legacyGuildId?: string
+  ) {}
 
   async init(): Promise<void> {
     await mkdir(path.dirname(this.filePath), { recursive: true });
@@ -36,9 +39,13 @@ export class JsonStateStore implements StateStore {
         users: parsed.users ?? {},
         messages: (parsed.messages ?? []).map((message) => ({
           ...message,
+          guildId: message.guildId ?? this.legacyGuildId ?? "legacy",
           source: message.source ?? "discord_message"
         })),
-        leads: parsed.leads ?? [],
+        leads: (parsed.leads ?? []).map((lead) => ({
+          ...lead,
+          guildId: lead.guildId ?? this.legacyGuildId ?? "legacy"
+        })),
         events: parsed.events ?? []
       };
     } catch {
@@ -81,7 +88,12 @@ export class JsonStateStore implements StateStore {
       source: input.source ?? "discord_message"
     };
 
-    this.state.messages.push(message);
+    const existingIndex = this.state.messages.findIndex((item) => item.id === message.id);
+    if (existingIndex >= 0) {
+      this.state.messages[existingIndex] = message;
+    } else {
+      this.state.messages.push(message);
+    }
     await this.persist();
     return message;
   }
@@ -95,6 +107,19 @@ export class JsonStateStore implements StateStore {
     const mergedTags = new Set([...user.tags, ...tags]);
     user.tags = [...mergedTags].sort();
     user.leadScore = Math.max(user.leadScore, leadScore);
+    user.lastSeenAt = new Date().toISOString();
+    await this.persist();
+    return user;
+  }
+
+  async setUserSignals(userId: string, tags: string[], leadScore: number): Promise<BotUser | undefined> {
+    const user = this.state.users[userId];
+    if (!user) {
+      return undefined;
+    }
+
+    user.tags = [...new Set(tags)].sort();
+    user.leadScore = Math.max(0, leadScore);
     user.lastSeenAt = new Date().toISOString();
     await this.persist();
     return user;

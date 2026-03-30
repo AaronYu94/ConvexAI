@@ -7,7 +7,9 @@
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "register:commands": "tsx src/bot/registerCommands.ts"
+    "register:commands": "tsx src/bot/registerCommands.ts",
+    "sync:history": "tsx src/scripts/syncHistory.ts",
+    "backfill:user-tags": "tsx src/scripts/backfillUserTags.ts"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
