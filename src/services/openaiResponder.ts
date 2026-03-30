@@ -54,77 +54,90 @@ export class OpenAIResponder {
       return buildFallback(question, results);
     }
 
-    const context = renderKnowledgeContext(results);
-    const instructions = [
-      `You are ${this.config.botName}, an AI community operations assistant for a Discord server.`,
-      "Answer with a concise, helpful Discord-ready response.",
-      "Only use the supplied context. Do not invent product details, pricing commitments, or roadmap promises.",
-      "If the context is incomplete, say so clearly and suggest a human follow-up.",
-      "If the user sounds high-intent, end with one practical next step."
-    ].join(" ");
+    try {
+      const context = renderKnowledgeContext(results);
+      const instructions = [
+        `You are ${this.config.botName}, an AI community operations assistant for a Discord server.`,
+        "Answer with a concise, helpful Discord-ready response.",
+        "Respond in the same language the user used unless they explicitly ask for another language.",
+        "Only use the supplied context. Do not invent product details, pricing commitments, or roadmap promises.",
+        "If the context is incomplete, say so clearly and suggest a human follow-up.",
+        "If the user sounds high-intent, end with one practical next step."
+      ].join(" ");
 
-    const userPrompt = [
-      `Question: ${question}`,
-      "",
-      "Grounding context:",
-      context || "No context found."
-    ].join("\n");
+      const userPrompt = [
+        `Question: ${question}`,
+        "",
+        "Grounding context:",
+        context || "No context found."
+      ].join("\n");
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.config.openAiApiKey}`
-      },
-      body: JSON.stringify({
-        model: this.config.openAiModel,
-        input: [
-          {
-            role: "system",
-            content: [
-              {
-                type: "input_text",
-                text: instructions
-              }
-            ]
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: userPrompt
-              }
-            ]
-          }
-        ]
-      })
-    });
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.config.openAiApiKey}`
+        },
+        body: JSON.stringify({
+          model: this.config.openAiModel,
+          input: [
+            {
+              role: "system",
+              content: [
+                {
+                  type: "input_text",
+                  text: instructions
+                }
+              ]
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: userPrompt
+                }
+              ]
+            }
+          ]
+        })
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
+      if (!response.ok) {
+        const fallback = buildFallback(question, results);
+        const errorText = await response.text();
+        return {
+          text: [
+            "The OpenAI call failed, so I am falling back to a local summary.",
+            `Reason: ${errorText.slice(0, 180)}`,
+            "",
+            fallback.text
+          ].join("\n"),
+          usedFallback: true
+        };
+      }
+
+      const payload = await response.json();
+      const outputText = extractOutputText(payload);
+
+      if (!outputText) {
+        return buildFallback(question, results);
+      }
+
+      return {
+        text: outputText,
+        usedFallback: false
+      };
+    } catch (error) {
       const fallback = buildFallback(question, results);
       return {
         text: [
-          "The OpenAI call failed, so I am falling back to a local summary.",
-          `Error: ${errorText.slice(0, 400)}`,
+          "The OpenAI call could not be completed, so I am falling back to a local summary.",
           "",
           fallback.text
         ].join("\n"),
         usedFallback: true
       };
     }
-
-    const payload = await response.json();
-    const outputText = extractOutputText(payload);
-
-    if (!outputText) {
-      return buildFallback(question, results);
-    }
-
-    return {
-      text: outputText,
-      usedFallback: false
-    };
   }
 }

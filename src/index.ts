@@ -120,43 +120,54 @@ async function main(): Promise<void> {
       return;
     }
 
-    if (interaction.commandName === "daily-report") {
-      const report = buildDailyReport(await store.getSnapshot(), config.reportTimezone);
-      await interaction.reply({ content: clipForDiscord(report), ephemeral: true });
-      return;
-    }
+    try {
+      if (interaction.commandName === "daily-report") {
+        const report = buildDailyReport(await store.getSnapshot(), config.reportTimezone);
+        await interaction.reply({ content: clipForDiscord(report), ephemeral: true });
+        return;
+      }
 
-    if (interaction.commandName === "weekly-report") {
-      const report = buildWeeklyReport(await store.getSnapshot(), config.reportTimezone);
-      await interaction.reply({ content: clipForDiscord(report), ephemeral: true });
-      return;
-    }
+      if (interaction.commandName === "weekly-report") {
+        const report = buildWeeklyReport(await store.getSnapshot(), config.reportTimezone);
+        await interaction.reply({ content: clipForDiscord(report), ephemeral: true });
+        return;
+      }
 
-    if (interaction.commandName === "reload-kb") {
-      const chunkCount = await knowledge.reload();
-      await store.recordEvent("knowledge_reloaded", { chunkCount });
-      await interaction.reply({
-        content: `Reloaded ${chunkCount} knowledge chunks.`,
-        ephemeral: true
+      if (interaction.commandName === "reload-kb") {
+        await interaction.deferReply({ ephemeral: true });
+        const chunkCount = await knowledge.reload();
+        await store.recordEvent("knowledge_reloaded", { chunkCount });
+        await interaction.editReply(`Reloaded ${chunkCount} knowledge chunks.`);
+        return;
+      }
+
+      if (interaction.commandName !== "ask") {
+        return;
+      }
+
+      const question = interaction.options.getString("question", true).trim();
+      await interaction.deferReply();
+      const results = await knowledge.search(question);
+      const answer = await responder.answer(question, results);
+
+      await store.recordEvent("slash_answer_sent", {
+        question,
+        usedFallback: answer.usedFallback,
+        resultCount: results.length
       });
-      return;
+
+      await interaction.editReply(clipForDiscord(answer.text));
+    } catch (error) {
+      console.error("Interaction handler failed", error);
+      const safeMessage = "The bot hit an error while processing that command.";
+
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(safeMessage).catch(() => undefined);
+        return;
+      }
+
+      await interaction.reply({ content: safeMessage, ephemeral: true }).catch(() => undefined);
     }
-
-    if (interaction.commandName !== "ask") {
-      return;
-    }
-
-    const question = interaction.options.getString("question", true).trim();
-    const results = await knowledge.search(question);
-    const answer = await responder.answer(question, results);
-
-    await store.recordEvent("slash_answer_sent", {
-      question,
-      usedFallback: answer.usedFallback,
-      resultCount: results.length
-    });
-
-    await interaction.reply(clipForDiscord(answer.text));
   });
 
   client.on(Events.MessageCreate, async (message) => {
