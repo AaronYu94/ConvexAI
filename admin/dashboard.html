@@ -4,8 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>管理后台 | ConvexAI</title>
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="shortcut icon" type="image/png" href="/favicon.png" />
+    <link rel="icon" href="/favicon.ico?v=9" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=9" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=9" />
+    <link rel="shortcut icon" href="/favicon.ico?v=9" />
+    <link rel="apple-touch-icon" href="/favicon.png?v=9" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -679,6 +682,7 @@
         background: rgba(255, 255, 255, 0.35);
         padding: var(--space-md);
         font-weight: 700;
+        white-space: pre-wrap;
       }
 
       .helper-copy {
@@ -887,10 +891,11 @@
                 </div>
                 <div class="stack-actions">
                   <button class="btn btn-outline" type="button" id="ops-preview-button">先预览人群</button>
+                  <button class="btn btn-outline" type="button" id="ops-share-button" disabled>发给运营内群</button>
                   <button class="btn" type="button" id="ops-execute-button" disabled>确认执行</button>
                 </div>
                 <div class="summary-card" id="ops-summary">还没有生成任务预览。</div>
-                <div class="helper-copy">默认执行方式是给匹配到的成员发送 Discord 私信。推荐型任务不会直接执行。</div>
+                <div class="helper-copy">默认执行方式是给匹配到的成员发送 Discord 私信。你也可以先把筛选结果发到运营内群、Slack 或飞书 webhook。</div>
               </div>
             </div>
 
@@ -934,6 +939,18 @@
                   <input id="activity-name" type="text" placeholder="例如：四月抽奖筛选" />
                 </div>
                 <div class="field">
+                  <label for="activity-submission-title">提交模板标题</label>
+                  <input id="activity-submission-title" type="text" placeholder="例如：四月活动报名模板" />
+                </div>
+                <div class="field">
+                  <label for="activity-submission-instructions">提交说明</label>
+                  <textarea id="activity-submission-instructions" rows="4" placeholder="说明提交要求、截止时间和审核方式"></textarea>
+                </div>
+                <div class="field">
+                  <label for="activity-submission-fields">字段模板</label>
+                  <input id="activity-submission-fields" type="text" placeholder="用逗号分隔，例如：作品链接,角色名,UID,备注" />
+                </div>
+                <div class="field">
                   <label for="activity-include">必需关键词</label>
                   <input id="activity-include" type="text" placeholder="用逗号分隔，例如：报名,提交,截图" />
                 </div>
@@ -946,6 +963,10 @@
                   <input id="activity-tags" type="text" placeholder="用逗号分隔，例如：活跃用户,核心成员" />
                 </div>
                 <div class="field">
+                  <label for="activity-submission-channels">活动提交频道 ID</label>
+                  <input id="activity-submission-channels" type="text" placeholder="可选，用逗号分隔多个投稿 / 报名频道 ID" />
+                </div>
+                <div class="field">
                   <label for="activity-channels">限定频道 ID</label>
                   <input id="activity-channels" type="text" placeholder="可选，用逗号分隔多个频道 ID" />
                 </div>
@@ -955,7 +976,11 @@
                 </div>
                 <div class="stack-actions">
                   <button class="btn" type="button" id="activity-save-button">保存规则</button>
+                  <button class="btn btn-outline" type="button" id="activity-copy-discord-button">复制 Discord 模板</button>
+                  <button class="btn btn-outline" type="button" id="activity-copy-lark-button">复制飞书卡片 JSON</button>
+                  <button class="btn btn-outline" type="button" id="activity-publish-button">发到提交频道</button>
                 </div>
+                <div class="summary-card" id="activity-template-preview">保存规则后，这里会生成活动提交模板预览。</div>
               </div>
             </div>
 
@@ -1176,6 +1201,7 @@
       const guildSelect = document.getElementById("guild-select");
       let currentGuildId = "";
       let lastOpsPreview = null;
+      let lastActivityTemplate = null;
       const tagMeta = {
         high_intent: {
           label: "高意向",
@@ -1287,6 +1313,27 @@
           .replaceAll('"', "&quot;");
       }
 
+      async function copyTextToClipboard(text) {
+        if (!text) {
+          throw new Error("没有可复制的内容。");
+        }
+
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+
+        const fallback = document.createElement("textarea");
+        fallback.value = text;
+        fallback.setAttribute("readonly", "readonly");
+        fallback.style.position = "fixed";
+        fallback.style.opacity = "0";
+        document.body.appendChild(fallback);
+        fallback.select();
+        document.execCommand("copy");
+        document.body.removeChild(fallback);
+      }
+
       function formatTime(value) {
         if (!value) return "暂无";
         return new Intl.DateTimeFormat("zh-CN", {
@@ -1348,12 +1395,14 @@
         const badge = document.getElementById("ops-mode-badge");
         const summary = document.getElementById("ops-summary");
         const executeButton = document.getElementById("ops-execute-button");
+        const shareButton = document.getElementById("ops-share-button");
         badge.textContent = preview.mode === "send_message" ? "可执行" : "推荐模式";
         badge.className = `badge ${preview.mode === "send_message" ? "active" : "admin"}`;
         summary.textContent = deliveries
           ? `${preview.summary} 本次发送成功 ${deliveries.filter((item) => item.status === "sent").length} 人，失败 ${deliveries.filter((item) => item.status === "failed").length} 人。`
           : preview.summary;
         executeButton.disabled = !preview.canExecute;
+        shareButton.disabled = !preview.candidates || preview.candidates.length === 0;
 
         renderTableBody(
           "ops-preview-body",
@@ -1426,16 +1475,23 @@
         document.getElementById("ops-mode-badge").className = "badge admin";
         document.getElementById("ops-summary").textContent = "还没有生成任务预览。";
         document.getElementById("ops-execute-button").disabled = true;
+        document.getElementById("ops-share-button").disabled = true;
         renderTableBody("ops-preview-body", "", 3);
 
         const activity = payload.activity || { rule: {}, submissions: [] };
         const rule = activity.rule || {};
+        lastActivityTemplate = activity.template || null;
         document.getElementById("activity-name").value = rule.name || "";
+        document.getElementById("activity-submission-title").value = rule.submissionTitle || "";
+        document.getElementById("activity-submission-instructions").value = rule.submissionInstructions || "";
+        document.getElementById("activity-submission-fields").value = (rule.submissionFields || []).join(", ");
         document.getElementById("activity-include").value = (rule.includeKeywords || []).join(", ");
         document.getElementById("activity-exclude").value = (rule.excludeKeywords || []).join(", ");
         document.getElementById("activity-tags").value = (rule.requiredTags || []).map((tag) => tagMeta[tag]?.label || tag).join(", ");
+        document.getElementById("activity-submission-channels").value = (rule.submissionChannelIds || []).join(", ");
         document.getElementById("activity-channels").value = (rule.allowedChannelIds || []).join(", ");
         document.getElementById("activity-min-messages").value = String(rule.minMessageCount || 0);
+        document.getElementById("activity-template-preview").textContent = activity.template?.discordText || "保存规则后，这里会生成活动提交模板预览。";
         document.getElementById("activity-count-badge").textContent = `${(activity.submissions || []).length} 条候选`;
 
         renderTableBody(
@@ -1525,6 +1581,9 @@
                   </td>
                   <td>
                     ${formatTagList(submission.tags || [])}<br />
+                    ${submission.extractedFields && submission.extractedFields.length > 0
+                      ? `<div class="mini-meta" style="margin-top:8px;">${submission.extractedFields.map((field) => `${escapeHtml(field.label)}：${escapeHtml(field.value)}`).join("<br />")}</div>`
+                      : ""}
                     <div style="margin-top:8px;">${escapeHtml(submission.content || "暂无内容")}</div>
                   </td>
                   <td>
@@ -1535,6 +1594,7 @@
                   <td>
                     <textarea id="activity-note-${escapeHtml(submission.id)}" class="review-textarea" style="min-height:88px;" placeholder="可选：记录为什么通过或驳回">${escapeHtml(submission.reviewNote || "")}</textarea>
                     <div class="inline-actions">
+                      <button class="btn btn-outline btn-small" type="button" onclick="shareActivitySubmission('${escapeHtml(submission.id)}')">发飞书审核</button>
                       <button class="btn btn-outline btn-small" type="button" onclick="reviewActivitySubmission('${escapeHtml(submission.id)}', 'rejected')">驳回</button>
                       <button class="btn btn-small" type="button" onclick="reviewActivitySubmission('${escapeHtml(submission.id)}', 'approved')">通过</button>
                     </div>
@@ -1757,9 +1817,13 @@
           body: JSON.stringify({
             guildId: currentGuildId,
             name: document.getElementById("activity-name").value.trim(),
+            submissionTitle: document.getElementById("activity-submission-title").value.trim(),
+            submissionInstructions: document.getElementById("activity-submission-instructions").value.trim(),
+            submissionFields: parseCommaSeparated(document.getElementById("activity-submission-fields").value),
             includeKeywords: parseCommaSeparated(document.getElementById("activity-include").value),
             excludeKeywords: parseCommaSeparated(document.getElementById("activity-exclude").value),
             requiredTags: normalizeTagInputs(document.getElementById("activity-tags").value),
+            submissionChannelIds: parseCommaSeparated(document.getElementById("activity-submission-channels").value),
             allowedChannelIds: parseCommaSeparated(document.getElementById("activity-channels").value),
             minMessageCount: Number(document.getElementById("activity-min-messages").value || 0)
           })
@@ -1769,6 +1833,38 @@
           throw new Error(payload.error || "保存活动规则失败");
         }
         showNotice("活动初筛规则已保存。");
+        await loadDashboard(currentGuildId);
+      }
+
+      async function copyActivityTemplate(kind) {
+        if (!lastActivityTemplate) {
+          showNotice("请先保存活动规则，生成模板后再复制。");
+          return;
+        }
+
+        const text = kind === "lark" ? lastActivityTemplate.larkCardJson : lastActivityTemplate.discordText;
+        await copyTextToClipboard(text);
+        showNotice(kind === "lark" ? "飞书卡片 JSON 已复制。" : "Discord 提交模板已复制。");
+      }
+
+      async function publishActivityTemplate() {
+        const response = await fetch("/admin/api/activity/template/publish", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            guildId: currentGuildId
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "发布活动模板失败");
+        }
+
+        const sentCount = (payload.deliveries || []).filter((item) => item.status === "sent").length;
+        const failedCount = (payload.deliveries || []).filter((item) => item.status === "failed").length;
+        showNotice(`活动模板已发到提交频道。发送成功 ${sentCount} 个，失败 ${failedCount} 个。`);
         await loadDashboard(currentGuildId);
       }
 
@@ -1791,6 +1887,23 @@
         }
         showNotice(verdict === "approved" ? "这条提交已通过。" : "这条提交已驳回。");
         await loadDashboard(currentGuildId);
+      }
+
+      async function shareActivitySubmission(id) {
+        const response = await fetch(`/admin/api/activity/submissions/${encodeURIComponent(id)}/share`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            guildId: currentGuildId
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "发送飞书审核卡片失败");
+        }
+        showNotice("这条活动候选已经发到飞书审核卡片。");
       }
 
       async function previewOpsTask() {
@@ -1841,6 +1954,30 @@
         showNotice("批量触达已执行。");
       }
 
+      async function shareOpsTask() {
+        const instruction = document.getElementById("ops-instruction").value.trim();
+        if (!instruction) {
+          showNotice("请先输入一句话任务。");
+          return;
+        }
+        const response = await fetch("/admin/api/ops/share", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            guildId: currentGuildId,
+            instruction
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "发送到运营内群失败");
+        }
+        renderOpsPreview(payload.preview);
+        showNotice("筛选结果已经发到运营内群、Slack 或飞书 webhook。");
+      }
+
       guildSelect.addEventListener("change", async (event) => {
         currentGuildId = event.currentTarget.value;
         await loadDashboard(currentGuildId);
@@ -1887,7 +2024,11 @@
       });
 
       document.getElementById("activity-save-button").addEventListener("click", saveActivityRule);
+      document.getElementById("activity-copy-discord-button").addEventListener("click", () => copyActivityTemplate("discord"));
+      document.getElementById("activity-copy-lark-button").addEventListener("click", () => copyActivityTemplate("lark"));
+      document.getElementById("activity-publish-button").addEventListener("click", publishActivityTemplate);
       document.getElementById("ops-preview-button").addEventListener("click", previewOpsTask);
+      document.getElementById("ops-share-button").addEventListener("click", shareOpsTask);
       document.getElementById("ops-execute-button").addEventListener("click", executeOpsTask);
 
       window.addEventListener("hashchange", syncActiveNav);

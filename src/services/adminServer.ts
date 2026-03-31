@@ -5,6 +5,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import multer from "multer";
 import { getConfiguredGuildIds } from "../guildConfig";
 import type { BotConfig, BotEvent, BotMessage, BotState, LeadEvent, StateStore } from "../types";
+import { AlertService } from "./alerts";
 import { canonicalizeLeadTags, scoreLeadIntent } from "./leadScorer";
 import { KnowledgeEngine } from "./knowledgeEngine";
 
@@ -68,6 +69,10 @@ interface DashboardAnswerReview {
 interface ActivityRuleConfig {
   guildId: string;
   name: string;
+  submissionTitle: string;
+  submissionInstructions: string;
+  submissionFields: string[];
+  submissionChannelIds: string[];
   allowedChannelIds: string[];
   includeKeywords: string[];
   excludeKeywords: string[];
@@ -84,6 +89,10 @@ interface DashboardActivitySubmission {
   displayName: string;
   createdAt: string;
   content: string;
+  extractedFields: Array<{
+    label: string;
+    value: string;
+  }>;
   tags: string[];
   messageCount: number;
   status: "shortlisted" | "needs_review" | "approved" | "rejected";
@@ -91,7 +100,12 @@ interface DashboardActivitySubmission {
   reviewNote?: string;
 }
 
-interface DashboardOpsCandidate {
+interface DashboardActivityTemplate {
+  discordText: string;
+  larkCardJson: string;
+}
+
+export interface DashboardOpsCandidate {
   userId: string;
   username: string;
   displayName: string;
@@ -110,6 +124,14 @@ interface DashboardOpsPreview {
   candidates: DashboardOpsCandidate[];
 }
 
+export interface DashboardOpsSharePayload {
+  title: string;
+  instruction: string;
+  summary: string;
+  draftedMessage?: string;
+  candidates: DashboardOpsCandidate[];
+}
+
 interface ParsedOpsInstruction {
   mode: "recommend" | "send_message";
   tags: string[];
@@ -125,6 +147,10 @@ interface RankedOpsCandidate extends DashboardOpsCandidate {
 const DEFAULT_ACTIVITY_RULE_NAME = "默认活动筛选";
 const DEFAULT_ACTIVITY_RULE: Omit<ActivityRuleConfig, "guildId"> = {
   name: DEFAULT_ACTIVITY_RULE_NAME,
+  submissionTitle: "活动提交模板",
+  submissionInstructions: "请按下面的模板一次性提交，方便系统初筛和团队审核。",
+  submissionFields: [],
+  submissionChannelIds: [],
   allowedChannelIds: [],
   includeKeywords: [],
   excludeKeywords: [],
@@ -380,11 +406,71 @@ function normalizeActivityRule(guildId: string, input?: Partial<ActivityRuleConf
   return {
     guildId,
     name: input?.name?.trim() || DEFAULT_ACTIVITY_RULE_NAME,
+    submissionTitle: input?.submissionTitle?.trim() || "活动提交模板",
+    submissionInstructions: input?.submissionInstructions?.trim() || "请按下面的模板一次性提交，方便系统初筛和团队审核。",
+    submissionFields: normalizeStringList(input?.submissionFields),
+    submissionChannelIds: normalizeStringList(input?.submissionChannelIds),
     allowedChannelIds: normalizeStringList(input?.allowedChannelIds),
     includeKeywords: normalizeStringList(input?.includeKeywords).map(normalizeSearchable),
     excludeKeywords: normalizeStringList(input?.excludeKeywords).map(normalizeSearchable),
     requiredTags: normalizeStringList(input?.requiredTags),
     minMessageCount: Math.max(0, Number(input?.minMessageCount ?? 0) || 0)
+  };
+}
+
+function parseActivitySubmissionFields(content: string, fields: string[]): Array<{ label: string; value: string }> {
+  if (fields.length === 0) {
+    return [];
+  }
+
+  return fields
+    .map((field) => {
+      const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const match = content.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*[：:]\\s*(.+)`, "i"));
+      return {
+        label: field,
+        value: match?.[1]?.trim() || ""
+      };
+    })
+    .filter((entry) => entry.value);
+}
+
+function buildActivityTemplate(rule: ActivityRuleConfig): DashboardActivityTemplate {
+  const fields = rule.submissionFields.length > 0 ? rule.submissionFields : ["提交内容", "作品链接", "备注"];
+  const discordLines = [
+    `【${rule.submissionTitle}】`,
+    rule.submissionInstructions,
+    "",
+    "请按以下格式提交：",
+    ...fields.map((field) => `${field}：`)
+  ];
+
+  const larkCard = {
+    config: {
+      wide_screen_mode: true
+    },
+    header: {
+      title: {
+        tag: "plain_text",
+        content: rule.submissionTitle
+      },
+      template: "blue"
+    },
+    elements: [
+      {
+        tag: "markdown",
+        content: rule.submissionInstructions
+      },
+      {
+        tag: "markdown",
+        content: ["请按以下字段提交：", ...fields.map((field) => `- ${field}`)].join("\n")
+      }
+    ]
+  };
+
+  return {
+    discordText: discordLines.join("\n"),
+    larkCardJson: JSON.stringify(larkCard, null, 2)
   };
 }
 
@@ -704,15 +790,23 @@ function buildActivitySubmissions(
 
   return messages
     .filter((message) => message.guildId === guildId)
-    .filter((message) => scoreLeadIntent(message.content).tags.includes("event_candidate"))
+    .filter((message) => {
+      const inferredTags = scoreLeadIntent(message.content).tags;
+      return rule.submissionChannelIds.includes(message.channelId) || inferredTags.includes("event_candidate");
+    })
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .slice(0, 80)
     .map((message) => {
       const profile = profileMap.get(message.userId);
       const normalizedContent = normalizeSearchable(message.content);
+      const extractedFields = parseActivitySubmissionFields(message.content, rule.submissionFields);
+      const missingSubmissionFields = rule.submissionFields.filter(
+        (field) => !extractedFields.some((entry) => entry.label === field && entry.value)
+      );
       const matchedKeywords = rule.includeKeywords.filter((keyword) => normalizedContent.includes(keyword));
       const blockedKeywords = rule.excludeKeywords.filter((keyword) => normalizedContent.includes(keyword));
       const missingTags = rule.requiredTags.filter((tag) => !(profile?.tags ?? []).includes(tag));
+      const fromSubmissionChannel = rule.submissionChannelIds.includes(message.channelId);
       const allowedChannel = rule.allowedChannelIds.length === 0 || rule.allowedChannelIds.includes(message.channelId);
       const enoughMessages = (profile?.messageCount ?? 0) >= rule.minMessageCount;
       const keywordMatched = rule.includeKeywords.length === 0 || matchedKeywords.length > 0;
@@ -720,6 +814,12 @@ function buildActivitySubmissions(
       const tagMatched = missingTags.length === 0;
 
       const screeningParts = [
+        fromSubmissionChannel ? "来自活动提交频道" : "由消息信号识别为活动候选",
+        missingSubmissionFields.length === 0
+          ? rule.submissionFields.length > 0
+            ? "字段完整"
+            : "未设置字段模板"
+          : `缺少字段：${missingSubmissionFields.join(" / ")}`,
         keywordMatched
           ? rule.includeKeywords.length > 0
             ? `命中关键词：${matchedKeywords.join(" / ")}`
@@ -744,6 +844,7 @@ function buildActivitySubmissions(
         displayName: profile?.displayName ?? message.username,
         createdAt: message.createdAt,
         content: message.content,
+        extractedFields,
         tags: canonicalizeLeadTags(scoreLeadIntent(message.content).tags),
         messageCount: profile?.messageCount ?? 0,
         status,
@@ -1134,15 +1235,68 @@ function buildRecentMessages(messages: BotMessage[], guildId?: string) {
     }));
 }
 
+function buildLarkToast(content: string, type: "success" | "info" | "warning" | "error" = "success") {
+  return {
+    toast: {
+      type,
+      content
+    }
+  };
+}
+
+function getLarkActionValue(payload: Record<string, unknown>): Record<string, unknown> {
+  const candidates = [
+    payload.event && typeof payload.event === "object" ? (payload.event as { action?: { value?: unknown } }).action?.value : undefined,
+    payload.action && typeof payload.action === "object" ? (payload.action as { value?: unknown }).value : undefined
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      return candidate as Record<string, unknown>;
+    }
+  }
+
+  return {};
+}
+
+function getLarkOperator(payload: Record<string, unknown>): { id?: string; name?: string } {
+  const eventOperator =
+    payload.event && typeof payload.event === "object"
+      ? (payload.event as { operator?: Record<string, unknown> }).operator
+      : undefined;
+  const rootOperator = payload.operator && typeof payload.operator === "object" ? (payload.operator as Record<string, unknown>) : undefined;
+  const source = eventOperator ?? rootOperator ?? {};
+
+  return {
+    id:
+      typeof source.open_id === "string"
+        ? source.open_id
+        : typeof source.union_id === "string"
+          ? source.union_id
+          : typeof source.user_id === "string"
+            ? source.user_id
+            : undefined,
+    name:
+      typeof source.name === "string"
+        ? source.name
+        : typeof source.display_name === "string"
+          ? source.display_name
+          : undefined
+  };
+}
+
 export class AdminServer {
   private server?: ReturnType<typeof express["application"]["listen"]>;
   private discordClient?: Client;
+  private readonly alerts: AlertService;
 
   constructor(
     private readonly config: BotConfig,
     private readonly store: StateStore,
     private readonly knowledge: KnowledgeEngine
-  ) {}
+  ) {
+    this.alerts = new AlertService(config);
+  }
 
   attachClient(client: Client): void {
     this.discordClient = client;
@@ -1181,18 +1335,131 @@ export class AdminServer {
     });
 
     app.use(express.json({ limit: "2mb" }));
+
+    app.post("/integrations/lark/callback", async (req, res) => {
+      const body = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
+      const challenge = typeof body.challenge === "string" ? body.challenge : undefined;
+      if (challenge) {
+        res.json({ challenge });
+        return;
+      }
+
+      const token =
+        typeof body.token === "string"
+          ? body.token
+          : body.header && typeof body.header === "object" && typeof (body.header as { token?: unknown }).token === "string"
+            ? ((body.header as { token?: string }).token ?? "")
+            : "";
+
+      if (this.config.larkCallbackToken && token !== this.config.larkCallbackToken) {
+        res.status(403).json(buildLarkToast("Token 校验失败。", "error"));
+        return;
+      }
+
+      const actionValue = getLarkActionValue(body);
+      const action = typeof actionValue.action === "string" ? actionValue.action : "";
+      const operator = getLarkOperator(body);
+      const openMessageId =
+        typeof body.open_message_id === "string"
+          ? body.open_message_id
+          : body.event && typeof body.event === "object" && typeof (body.event as { open_message_id?: unknown }).open_message_id === "string"
+            ? ((body.event as { open_message_id?: string }).open_message_id ?? "")
+            : "";
+
+      if (!action) {
+        res.json(buildLarkToast("已收到飞书卡片回传。", "info"));
+        return;
+      }
+
+      if (action === "ack_handoff") {
+        await this.store.recordEvent("lark_card_handoff_acknowledged", {
+          handoffId: typeof actionValue.handoffId === "string" ? actionValue.handoffId : undefined,
+          guildId: typeof actionValue.guildId === "string" ? actionValue.guildId : undefined,
+          openMessageId: openMessageId || undefined,
+          operatorId: operator.id,
+          operatorName: operator.name
+        });
+        res.json(buildLarkToast("已标记为接手处理中。"));
+        return;
+      }
+
+      if (action === "ack_ops_preview") {
+        await this.store.recordEvent("lark_card_ops_acknowledged", {
+          guildId: typeof actionValue.guildId === "string" ? actionValue.guildId : undefined,
+          instruction: typeof actionValue.instruction === "string" ? actionValue.instruction : undefined,
+          openMessageId: openMessageId || undefined,
+          operatorId: operator.id,
+          operatorName: operator.name
+        });
+        res.json(buildLarkToast("名单已标记为运营已接收。"));
+        return;
+      }
+
+      if (action === "approve_activity_submission" || action === "reject_activity_submission") {
+        const submissionId = typeof actionValue.submissionId === "string" ? actionValue.submissionId : "";
+        const guildId = typeof actionValue.guildId === "string" ? actionValue.guildId : "";
+        if (!submissionId || !guildId) {
+          res.json(buildLarkToast("缺少 submissionId 或 guildId。", "error"));
+          return;
+        }
+
+        await this.store.recordEvent("activity_submission_reviewed", {
+          submissionId,
+          guildId,
+          verdict: action === "approve_activity_submission" ? "approved" : "rejected",
+          note: operator.name ? `来自飞书卡片：${operator.name}` : "来自飞书卡片"
+        });
+        res.json(buildLarkToast(action === "approve_activity_submission" ? "该提交已通过。" : "该提交已驳回。"));
+        return;
+      }
+
+      res.json(buildLarkToast("已收到飞书卡片回传。", "info"));
+    });
+
     app.use("/admin", authMiddleware);
 
     app.get("/favicon.png", (_req, res) => {
-      res.sendFile(path.resolve(process.cwd(), "logo.png"));
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon.png"));
+    });
+
+    app.get("/favicon-32x32.png", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon-32x32.png"));
+    });
+
+    app.get("/favicon-16x16.png", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon-16x16.png"));
+    });
+
+    app.get("/favicon.svg", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon.svg"));
     });
 
     app.get("/favicon.ico", (_req, res) => {
-      res.sendFile(path.resolve(process.cwd(), "logo.png"));
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon.ico"));
     });
 
     app.get("/admin/assets/logo.png", (_req, res) => {
       res.sendFile(path.resolve(process.cwd(), "logo.png"));
+    });
+
+    app.get("/admin/assets/favicon.png", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon.png"));
+    });
+
+    app.get("/admin/assets/favicon-32x32.png", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon-32x32.png"));
+    });
+
+    app.get("/admin/assets/favicon-16x16.png", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon-16x16.png"));
+    });
+
+    app.get("/admin/assets/favicon.svg", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon.svg"));
+    });
+
+    app.get("/admin/assets/favicon.ico", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "admin/assets/favicon.ico"));
     });
 
     app.get("/admin", async (_req, res) => {
@@ -1224,6 +1491,7 @@ export class AdminServer {
         activity: selectedGuildId
           ? {
               rule: activityRule,
+              template: buildActivityTemplate(activityRule),
               submissions: buildActivitySubmissions(
                 snapshot.messages,
                 profiles,
@@ -1234,6 +1502,7 @@ export class AdminServer {
             }
           : {
               rule: activityRule,
+              template: buildActivityTemplate(activityRule),
               submissions: []
             },
         handoffs: buildAnswerHandoffs(snapshot.events, selectedGuildId).slice(0, 50),
@@ -1269,6 +1538,13 @@ export class AdminServer {
       const rules = await readActivityRules(this.config.activityRulesFile);
       const nextRule = normalizeActivityRule(guildId, {
         name: typeof req.body?.name === "string" ? req.body.name : DEFAULT_ACTIVITY_RULE_NAME,
+        submissionTitle: typeof req.body?.submissionTitle === "string" ? req.body.submissionTitle : "活动提交模板",
+        submissionInstructions:
+          typeof req.body?.submissionInstructions === "string"
+            ? req.body.submissionInstructions
+            : "请按下面的模板一次性提交，方便系统初筛和团队审核。",
+        submissionFields: Array.isArray(req.body?.submissionFields) ? req.body.submissionFields : [],
+        submissionChannelIds: Array.isArray(req.body?.submissionChannelIds) ? req.body.submissionChannelIds : [],
         allowedChannelIds: Array.isArray(req.body?.allowedChannelIds) ? req.body.allowedChannelIds : [],
         includeKeywords: Array.isArray(req.body?.includeKeywords) ? req.body.includeKeywords : [],
         excludeKeywords: Array.isArray(req.body?.excludeKeywords) ? req.body.excludeKeywords : [],
@@ -1285,6 +1561,112 @@ export class AdminServer {
       res.json({
         ok: true,
         rule: nextRule
+      });
+    });
+
+    app.post("/admin/api/activity/template/publish", async (req, res) => {
+      const guildId = typeof req.body?.guildId === "string" ? req.body.guildId.trim() : "";
+      if (!guildId) {
+        res.status(400).json({ error: "缺少 guildId。" });
+        return;
+      }
+
+      if (!this.discordClient) {
+        res.status(503).json({ error: "Discord 客户端尚未就绪，暂时无法发布模板。" });
+        return;
+      }
+
+      const rules = await readActivityRules(this.config.activityRulesFile);
+      const rule = normalizeActivityRule(guildId, rules[guildId]);
+      if (rule.submissionChannelIds.length === 0) {
+        res.status(400).json({ error: "请先配置活动提交频道 ID。" });
+        return;
+      }
+
+      const template = buildActivityTemplate(rule);
+      const deliveries: Array<{ channelId: string; status: "sent" | "failed"; error?: string }> = [];
+
+      for (const channelId of rule.submissionChannelIds) {
+        try {
+          const channel = await this.discordClient.channels.fetch(channelId).catch(() => null);
+          if (!channel || channel.type !== ChannelType.GuildText) {
+            deliveries.push({
+              channelId,
+              status: "failed",
+              error: "Channel not found or not a text channel"
+            });
+            continue;
+          }
+          await (channel as TextChannel).send(template.discordText.slice(0, 1900));
+          deliveries.push({
+            channelId,
+            status: "sent"
+          });
+        } catch (error) {
+          deliveries.push({
+            channelId,
+            status: "failed",
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
+      }
+
+      await this.store.recordEvent("activity_template_published", {
+        guildId,
+        channelIds: rule.submissionChannelIds,
+        sentCount: deliveries.filter((item) => item.status === "sent").length,
+        failedCount: deliveries.filter((item) => item.status === "failed").length,
+        deliveries
+      });
+
+      res.json({
+        ok: true,
+        template,
+        deliveries
+      });
+    });
+
+    app.post("/admin/api/activity/submissions/:id/share", async (req, res) => {
+      const submissionId = req.params.id;
+      const guildId = typeof req.body?.guildId === "string" ? req.body.guildId.trim() : "";
+
+      if (!submissionId || !guildId) {
+        res.status(400).json({ error: "缺少 submissionId 或 guildId。" });
+        return;
+      }
+
+      if (!this.config.larkWebhookUrl) {
+        res.status(400).json({ error: "当前未配置飞书 webhook，暂时不能发送审核卡片。" });
+        return;
+      }
+
+      const snapshot = await this.store.getSnapshot();
+      const profiles = buildProfiles(snapshot, guildId);
+      const activityRules = await readActivityRules(this.config.activityRulesFile);
+      const activityRule = normalizeActivityRule(guildId, activityRules[guildId]);
+      const submissions = buildActivitySubmissions(
+        snapshot.messages,
+        profiles,
+        filterEventsByGuild(snapshot.events, guildId),
+        guildId,
+        activityRule
+      );
+      const submission = submissions.find((item) => item.id === submissionId);
+
+      if (!submission) {
+        res.status(404).json({ error: "没有找到这条活动候选，可能已经被移除。" });
+        return;
+      }
+
+      await this.alerts.sendActivitySubmissionReviewCard(guildId, submission);
+      await this.store.recordEvent("activity_submission_shared_to_lark", {
+        guildId,
+        submissionId
+      });
+
+      res.json({
+        ok: true,
+        submissionId
       });
     });
 
@@ -1330,6 +1712,50 @@ export class AdminServer {
         mode: preview.mode,
         candidateCount: preview.candidates.length
       });
+      res.json({
+        ok: true,
+        preview
+      });
+    });
+
+    app.post("/admin/api/ops/share", async (req, res) => {
+      const instruction = typeof req.body?.instruction === "string" ? req.body.instruction.trim() : "";
+      const guildId = typeof req.body?.guildId === "string" ? req.body.guildId.trim() : "";
+      if (!instruction || !guildId) {
+        res.status(400).json({ error: "缺少指令或服务器 ID。" });
+        return;
+      }
+
+      const snapshot = await this.store.getSnapshot();
+      const profiles = buildProfiles(snapshot, guildId);
+      const preview = buildOpsPreview(instruction, profiles, filterMessagesByGuild(snapshot.messages, guildId));
+
+      if (preview.candidates.length === 0) {
+        res.status(400).json({ error: "当前没有可分享的候选名单，请先调整筛选指令。" });
+        return;
+      }
+
+      if (!this.discordClient) {
+        res.status(503).json({ error: "Discord 客户端尚未就绪，暂时无法发送到运营内群。" });
+        return;
+      }
+
+      const payload: DashboardOpsSharePayload = {
+        title: preview.mode === "send_message" ? "运营触达任务待确认" : "运营推荐名单",
+        instruction,
+        summary: preview.summary,
+        draftedMessage: preview.draftedMessage,
+        candidates: preview.candidates
+      };
+
+      await this.alerts.shareOpsPreview(this.discordClient, guildId, payload);
+      await this.store.recordEvent("ops_preview_shared", {
+        guildId,
+        instruction,
+        mode: preview.mode,
+        candidateCount: preview.candidates.length
+      });
+
       res.json({
         ok: true,
         preview

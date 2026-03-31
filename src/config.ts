@@ -112,6 +112,7 @@ function loadGuildConfigs(): { guildConfigFile?: string; guildConfigs: Record<st
 
 export function getConfig(): BotConfig {
   const { guildConfigFile, guildConfigs } = loadGuildConfigs();
+  const adminPort = parseIntEnv("ADMIN_PORT", 3010);
   const configuredGuildIds = new Set<string>([
     ...parseCsv(optionalEnv("DISCORD_GUILD_IDS")),
     ...Object.keys(guildConfigs)
@@ -145,6 +146,8 @@ export function getConfig(): BotConfig {
     weeklyReportDay: (optionalEnv("WEEKLY_REPORT_DAY") ?? "MON").toUpperCase(),
     weeklyReportHour: parseIntEnv("WEEKLY_REPORT_HOUR", 10),
     slackWebhookUrl: optionalEnv("SLACK_WEBHOOK_URL"),
+    larkWebhookUrl: optionalEnv("LARK_WEBHOOK_URL"),
+    larkCallbackToken: optionalEnv("LARK_CALLBACK_TOKEN"),
     alertEmailTo: optionalEnv("ALERT_EMAIL_TO"),
     alertEmailFrom: optionalEnv("ALERT_EMAIL_FROM"),
     smtpHost: optionalEnv("SMTP_HOST"),
@@ -152,9 +155,10 @@ export function getConfig(): BotConfig {
     smtpSecure: parseBoolEnv("SMTP_SECURE", false),
     smtpUser: optionalEnv("SMTP_USER"),
     smtpPass: optionalEnv("SMTP_PASS"),
-    adminPort: parseIntEnv("ADMIN_PORT", 3010),
+    adminPort,
     adminUsername: optionalEnv("ADMIN_USERNAME"),
     adminPassword: optionalEnv("ADMIN_PASSWORD"),
+    adminBaseUrl: optionalEnv("ADMIN_BASE_URL") ?? `http://localhost:${adminPort}/admin`,
     activityRulesFile: path.resolve(process.cwd(), optionalEnv("ACTIVITY_RULES_FILE") ?? "./config/activity-rules.json"),
     guildConfigFile,
     guildConfigs

@@ -213,6 +213,7 @@ async function main(): Promise<void> {
         await alerts.sendAnswerHandoffAlert(
           client,
           interaction.guildId ?? "unknown",
+          handoff.id,
           displayName,
           question,
           workflow.reason ?? "Manual review requested.",
@@ -379,6 +380,7 @@ async function main(): Promise<void> {
       await alerts.sendAnswerHandoffAlert(
         client,
         message.guild.id,
+        handoff.id,
         message.member?.displayName ?? message.author.username,
         question,
         workflow.reason ?? "Manual review requested.",

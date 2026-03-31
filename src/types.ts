@@ -31,6 +31,8 @@ export interface BotConfig {
   weeklyReportDay: string;
   weeklyReportHour: number;
   slackWebhookUrl?: string;
+  larkWebhookUrl?: string;
+  larkCallbackToken?: string;
   alertEmailTo?: string;
   alertEmailFrom?: string;
   smtpHost?: string;
@@ -41,6 +43,7 @@ export interface BotConfig {
   adminPort: number;
   adminUsername?: string;
   adminPassword?: string;
+  adminBaseUrl: string;
   activityRulesFile: string;
   guildConfigFile?: string;
   guildConfigs: Record<string, GuildChannelConfig>;

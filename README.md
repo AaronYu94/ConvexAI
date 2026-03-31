@@ -8,6 +8,7 @@
 - 导入本地和远程文档
 - 识别定价、演示、企业采购、集成接入等意向信号
 - 发送 Discord、Slack、邮件告警
+- 支持把人工接管和运营名单同步到 Slack / 飞书 webhook
 - 输出日报和周报
 - 支持本地 JSON 或 PostgreSQL 存储
 - 提供给频道管理者使用的后台页面
@@ -42,8 +43,11 @@
 
 - 查看用户画像与标签
 - 像队友一样输入一句话任务，预览可触达人群
+- 把筛选结果一键发到运营内群、Slack 或飞书 webhook
 - 批量给筛选出来的用户发 Discord 私信
 - 活动提交初筛与人工审核
+- 支持活动专用提交频道自动收集候选
+- 支持把活动候选发到飞书审核卡片，并通过卡片按钮回传结果
 - 查看近期高意向线索
 - 查看最近消息流
 - 上传知识库文件
@@ -182,7 +186,9 @@ http://localhost:3010/admin
 - 重新加载知识库
 - 查看用户画像、标签和 lead score
 - 输入自然语言任务，生成推荐名单或批量跟进人群
+- 把推荐名单一键发到运营内群、Slack 或飞书 webhook
 - 配置活动初筛规则，并审核活动候选提交
+- 通过活动专用投稿频道自动沉淀活动候选
 - 对机器人答案做转人工处理和回答质检
 - 查看最近识别出的高意向线索
 - 查看近期消息
@@ -243,6 +249,7 @@ Discord 与 OpenAI：
 告警渠道：
 
 - `SLACK_WEBHOOK_URL`
+- `LARK_WEBHOOK_URL`
 - `ALERT_EMAIL_TO`
 - `ALERT_EMAIL_FROM`
 - `SMTP_HOST`
@@ -256,6 +263,30 @@ Discord 与 OpenAI：
 - `ADMIN_PORT`
 - `ADMIN_USERNAME`
 - `ADMIN_PASSWORD`
+- `ADMIN_BASE_URL`
+- `LARK_CALLBACK_TOKEN`
+
+## 飞书回调配置
+
+如果你希望在飞书卡片里直接点“通过 / 驳回 / 已接手”并把结果回传到系统，需要同时配置：
+
+- `LARK_WEBHOOK_URL`
+- `LARK_CALLBACK_TOKEN`
+- `ADMIN_BASE_URL`
+
+飞书事件回调地址应指向：
+
+```txt
+https://你的后台域名/integrations/lark/callback
+```
+
+说明：
+
+- `LARK_WEBHOOK_URL` 用来把卡片发到飞书群或机器人
+- `LARK_CALLBACK_TOKEN` 用来校验飞书卡片回传请求
+- `ADMIN_BASE_URL` 用来在飞书卡片里生成“打开后台”的跳转链接
+
+如果你在本地调试，`localhost` 不能被飞书直接访问，通常需要一层公网域名或隧道转发。
 
 ## PostgreSQL 与 pgvector
 
