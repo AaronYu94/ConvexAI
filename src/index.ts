@@ -11,6 +11,7 @@ import { getConfig } from "./config";
 import { getGuildConfig } from "./guildConfig";
 import { AlertService } from "./services/alerts";
 import { AdminServer } from "./services/adminServer";
+import { decideAnswerWorkflow } from "./services/answerWorkflow";
 import { DigestScheduler } from "./services/digestScheduler";
 import { KnowledgeEngine } from "./services/knowledgeEngine";
 import { LeadAnalyzer } from "./services/leadAnalyzer";
@@ -78,6 +79,7 @@ async function main(): Promise<void> {
       GatewayIntentBits.MessageContent
     ]
   });
+  adminServer.attachClient(client);
 
   client.once(Events.ClientReady, (readyClient) => {
     scheduler.start(client);
@@ -188,10 +190,57 @@ async function main(): Promise<void> {
       await interaction.deferReply();
       const results = await knowledge.search(question);
       const answer = await responder.answer(question, results);
+      const workflow = decideAnswerWorkflow(question, results, answer);
+
+      if (workflow.shouldEscalate) {
+        const handoff = await store.recordEvent(
+          "answer_handoff_requested",
+          {
+            guildId: interaction.guildId,
+            channelId: interaction.channelId,
+            source: "slash_ask",
+            username: interaction.user.username,
+            displayName,
+            question,
+            reason: workflow.reason,
+            draftAnswer: answer.text,
+            resultCount: results.length
+          },
+          interaction.user.id
+        );
+
+        await store.updateUserSignals(interaction.user.id, ["needs_your_call"], 0);
+        await alerts.sendAnswerHandoffAlert(
+          client,
+          interaction.guildId ?? "unknown",
+          displayName,
+          question,
+          workflow.reason ?? "Manual review requested.",
+          answer.text
+        );
+        await store.recordEvent(
+          "slash_answer_deferred",
+          {
+            guildId: interaction.guildId,
+            channelId: interaction.channelId,
+            handoffId: handoff.id,
+            reason: workflow.reason,
+            resultCount: results.length
+          },
+          interaction.user.id
+        );
+        await interaction.editReply(clipForDiscord(workflow.userFacingMessage ?? answer.text));
+        return;
+      }
 
       await store.recordEvent("slash_answer_sent", {
         question,
         guildId: interaction.guildId,
+        channelId: interaction.channelId,
+        source: "slash_ask",
+        username: interaction.user.username,
+        displayName,
+        answer: answer.text,
         usedFallback: answer.usedFallback,
         resultCount: results.length
       });
@@ -306,12 +355,62 @@ async function main(): Promise<void> {
     await message.channel.sendTyping();
     const results = await knowledge.search(question);
     const answer = await responder.answer(question, results);
+    const workflow = decideAnswerWorkflow(question, results, answer);
+
+    if (workflow.shouldEscalate) {
+      const handoff = await store.recordEvent(
+        "answer_handoff_requested",
+        {
+          guildId: message.guild.id,
+          channelId: message.channelId,
+          source: message.content.trim().toLowerCase().startsWith("!ask ") ? "slash_ask" : "discord_message",
+          messageId: message.id,
+          username: message.author.username,
+          displayName: message.member?.displayName ?? message.author.globalName ?? message.author.username,
+          question,
+          reason: workflow.reason,
+          draftAnswer: answer.text,
+          resultCount: results.length
+        },
+        message.author.id
+      );
+
+      await store.updateUserSignals(message.author.id, ["needs_your_call"], 0);
+      await alerts.sendAnswerHandoffAlert(
+        client,
+        message.guild.id,
+        message.member?.displayName ?? message.author.username,
+        question,
+        workflow.reason ?? "Manual review requested.",
+        answer.text
+      );
+      await store.recordEvent(
+        "message_answer_deferred",
+        {
+          guildId: message.guild.id,
+          channelId: message.channelId,
+          messageId: message.id,
+          handoffId: handoff.id,
+          reason: workflow.reason,
+          resultCount: results.length
+        },
+        message.author.id
+      );
+
+      await message.reply(clipForDiscord(workflow.userFacingMessage ?? answer.text));
+      return;
+    }
 
     await store.recordEvent(
       "message_answer_sent",
       {
         question,
         guildId: message.guild.id,
+        channelId: message.channelId,
+        source: message.content.trim().toLowerCase().startsWith("!ask ") ? "slash_ask" : "discord_message",
+        username: message.author.username,
+        displayName: message.member?.displayName ?? message.author.globalName ?? message.author.username,
+        answer: answer.text,
         usedFallback: answer.usedFallback,
         resultCount: results.length
       },

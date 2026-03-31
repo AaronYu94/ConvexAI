@@ -514,6 +514,40 @@
         text-underline-offset: 4px;
       }
 
+      .review-textarea {
+        width: 100%;
+        min-height: 104px;
+        resize: vertical;
+        padding: var(--space-sm);
+        border: 2px solid var(--text-blue);
+        background: rgba(255, 255, 255, 0.45);
+        color: var(--text-blue);
+        font-family: var(--font-body);
+        font-size: 0.95rem;
+        line-height: 1.45;
+      }
+
+      .inline-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        flex-wrap: wrap;
+        margin-top: var(--space-sm);
+      }
+
+      .checkbox-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+        font-size: 0.875rem;
+      }
+
+      .btn-small {
+        padding: 8px 14px;
+        font-size: 0.875rem;
+      }
+
       .split-grid {
         display: grid;
         grid-template-columns: 1.05fr 0.95fr;
@@ -591,6 +625,16 @@
         font: inherit;
       }
 
+      .field textarea,
+      .field select {
+        width: 100%;
+        padding: 12px 14px;
+        border: 2px solid var(--text-blue);
+        background: var(--bg-cream);
+        color: var(--text-blue);
+        font: inherit;
+      }
+
       .stack-actions {
         display: flex;
         gap: var(--space-sm);
@@ -626,6 +670,47 @@
         border: 2px dashed var(--text-blue);
         text-align: center;
         font-weight: 700;
+      }
+
+      .summary-card {
+        border: 2px solid var(--text-blue);
+        background: rgba(255, 255, 255, 0.35);
+        padding: var(--space-md);
+        font-weight: 700;
+      }
+
+      .helper-copy {
+        font-size: 0.88rem;
+        font-weight: 650;
+        opacity: 0.88;
+      }
+
+      .status-chip {
+        display: inline-block;
+        padding: 2px 10px;
+        border: 2px solid var(--text-blue);
+        font-size: 0.76rem;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .status-chip.shortlisted {
+        background: var(--accent-green);
+        color: var(--bg-cream);
+      }
+
+      .status-chip.needs_review {
+        background: var(--accent-yellow);
+      }
+
+      .status-chip.approved {
+        background: var(--accent-pink);
+      }
+
+      .status-chip.rejected {
+        background: rgba(227, 24, 43, 0.12);
+        color: var(--accent-red);
+        border-color: var(--accent-red);
       }
 
       @media (max-width: 1180px) {
@@ -683,9 +768,13 @@
           <ul class="nav-menu">
             <li><a href="#dashboard" class="nav-item"><span class="nav-item-icon">1</span> 总览</a></li>
             <li><a href="#users" class="nav-item active"><span class="nav-item-icon">2</span> 用户画像</a></li>
-            <li><a href="#knowledge" class="nav-item"><span class="nav-item-icon">3</span> 知识库</a></li>
-            <li><a href="#leads" class="nav-item"><span class="nav-item-icon">4</span> 高意向队列</a></li>
-            <li><a href="#activity" class="nav-item"><span class="nav-item-icon">5</span> 社区动态</a></li>
+            <li><a href="#ops" class="nav-item"><span class="nav-item-icon">3</span> 队友模式</a></li>
+            <li><a href="#campaigns" class="nav-item"><span class="nav-item-icon">4</span> 活动管理</a></li>
+            <li><a href="#handoffs" class="nav-item"><span class="nav-item-icon">5</span> 人工接管</a></li>
+            <li><a href="#reviews" class="nav-item"><span class="nav-item-icon">6</span> 回答质检</a></li>
+            <li><a href="#knowledge" class="nav-item"><span class="nav-item-icon">7</span> 知识库</a></li>
+            <li><a href="#leads" class="nav-item"><span class="nav-item-icon">8</span> 高意向队列</a></li>
+            <li><a href="#activity" class="nav-item"><span class="nav-item-icon">9</span> 社区动态</a></li>
           </ul>
         </nav>
 
@@ -768,6 +857,177 @@
                 </tr>
               </thead>
               <tbody id="profiles-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="data-section" id="ops">
+          <div class="controls-bar">
+            <div>
+              <h3 class="section-title">队友模式</h3>
+              <p class="section-desc">
+                像给队友派任务一样输入一句话。系统会先识别人群、给出草稿和推荐名单；需要触达时，再由你确认后批量发送。
+              </p>
+            </div>
+            <div class="actions">
+              <span class="badge admin" id="ops-mode-badge">预览中</span>
+            </div>
+          </div>
+
+          <div class="split-grid">
+            <div class="panel-box">
+              <h3 class="section-title">任务输入</h3>
+              <p>例如：“给今天问过退款的所有人发一个跟进，告诉他们问题已经解决了。” 或 “明天活动优先邀请谁？”</p>
+              <div class="form-stack">
+                <div class="field">
+                  <label for="ops-instruction">一句话任务</label>
+                  <textarea id="ops-instruction" rows="5" placeholder="输入你想让系统执行或推荐的运营动作"></textarea>
+                </div>
+                <div class="stack-actions">
+                  <button class="btn btn-outline" type="button" id="ops-preview-button">先预览人群</button>
+                  <button class="btn" type="button" id="ops-execute-button" disabled>确认执行</button>
+                </div>
+                <div class="summary-card" id="ops-summary">还没有生成任务预览。</div>
+                <div class="helper-copy">默认执行方式是给匹配到的成员发送 Discord 私信。推荐型任务不会直接执行。</div>
+              </div>
+            </div>
+
+            <div class="panel-box">
+              <h3 class="section-title">任务结果</h3>
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>用户</th>
+                      <th>状态</th>
+                      <th>推荐理由</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ops-preview-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="data-section" id="campaigns">
+          <div class="controls-bar">
+            <div>
+              <h3 class="section-title">活动管理</h3>
+              <p class="section-desc">
+                系统会把带有报名、投稿、抽奖、参赛等信号的消息提出来，按你设定的规则初筛，再交给团队做最终审核。
+              </p>
+            </div>
+            <div class="actions">
+              <span class="badge pending" id="activity-count-badge">0 条候选</span>
+            </div>
+          </div>
+
+          <div class="split-grid">
+            <div class="panel-box">
+              <h3 class="section-title">活动初筛规则</h3>
+              <div class="form-stack">
+                <div class="field">
+                  <label for="activity-name">规则名称</label>
+                  <input id="activity-name" type="text" placeholder="例如：四月抽奖筛选" />
+                </div>
+                <div class="field">
+                  <label for="activity-include">必需关键词</label>
+                  <input id="activity-include" type="text" placeholder="用逗号分隔，例如：报名,提交,截图" />
+                </div>
+                <div class="field">
+                  <label for="activity-exclude">排除关键词</label>
+                  <input id="activity-exclude" type="text" placeholder="用逗号分隔，例如：测试,草稿" />
+                </div>
+                <div class="field">
+                  <label for="activity-tags">要求标签</label>
+                  <input id="activity-tags" type="text" placeholder="用逗号分隔，例如：活跃用户,核心成员" />
+                </div>
+                <div class="field">
+                  <label for="activity-channels">限定频道 ID</label>
+                  <input id="activity-channels" type="text" placeholder="可选，用逗号分隔多个频道 ID" />
+                </div>
+                <div class="field">
+                  <label for="activity-min-messages">最低消息数</label>
+                  <input id="activity-min-messages" type="number" min="0" step="1" value="0" />
+                </div>
+                <div class="stack-actions">
+                  <button class="btn" type="button" id="activity-save-button">保存规则</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-box">
+              <h3 class="section-title">候选名单</h3>
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>用户</th>
+                      <th>提交内容</th>
+                      <th>初筛结果</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="activity-submissions-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="data-section" id="handoffs">
+          <div class="controls-bar">
+            <div>
+              <h3 class="section-title">人工接管</h3>
+              <p class="section-desc">
+                当机器人对答案不够确定时，会把问题、上下文和草稿挂到这里。你可以直接修正文案，并决定是否写回长期记忆。
+              </p>
+            </div>
+            <div class="actions">
+              <span class="badge pending" id="handoff-count-badge">0 条待处理</span>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>用户</th>
+                  <th>问题</th>
+                  <th>转人工原因</th>
+                  <th>草稿与处理</th>
+                </tr>
+              </thead>
+              <tbody id="handoffs-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="data-section" id="reviews">
+          <div class="controls-bar">
+            <div>
+              <h3 class="section-title">回答质检</h3>
+              <p class="section-desc">
+                系统会对部分已发送回答做抽样复核。你可以在这里记录结论、补充修正版，并决定是否把修正版写回长期记忆。
+              </p>
+            </div>
+            <div class="actions">
+              <span class="badge pending" id="review-count-badge">0 条待复核</span>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>用户</th>
+                  <th>问答内容</th>
+                  <th>抽样原因</th>
+                  <th>复核操作</th>
+                </tr>
+              </thead>
+              <tbody id="reviews-body"></tbody>
             </table>
           </div>
         </section>
@@ -913,6 +1173,100 @@
       const notice = document.getElementById("notice");
       const guildSelect = document.getElementById("guild-select");
       let currentGuildId = "";
+      let lastOpsPreview = null;
+      const tagMeta = {
+        high_intent: {
+          label: "高意向",
+          description: "用户表现出明显的试用、演示、采购或价格咨询信号，值得人工跟进。"
+        },
+        ready_to_grow: {
+          label: "准备成长",
+          description: "用户的兴趣和参与正在升温，适合推进下一步接入、转化或更深的使用。"
+        },
+        needs_followup: {
+          label: "需要跟进",
+          description: "用户已经出现明确信号，下一步应该由运营、销售或支持继续推进。"
+        },
+        needs_your_call: {
+          label: "需要你拍板",
+          description: "这类问题超出了机器人应当自动决定的范围，应该由你或团队成员来做判断。"
+        },
+        needs_human_review: {
+          label: "需要你拍板",
+          description: "这类问题超出了机器人应当自动决定的范围，应该由你或团队成员来做判断。"
+        },
+        event_candidate: {
+          label: "活动候选",
+          description: "用户提到了活动报名、作品提交、抽奖或参赛，适合进入活动审核流程。"
+        },
+        going_cold: {
+          label: "变冷中",
+          description: "这位成员最近的活跃度在下降，值得尽快 nudging 或人工关心一下。"
+        },
+        core_member: {
+          label: "核心成员",
+          description: "用户在这个社区里发言频繁，是重度活跃的核心参与者。"
+        },
+        active_user: {
+          label: "活跃用户",
+          description: "用户最近或累计发言较多，持续参与社区互动。"
+        },
+        community_member: {
+          label: "社区成员",
+          description: "用户已经开始在社区里发言互动，但暂时没有更强的商机或支持信号。"
+        },
+        support_issue: {
+          label: "支持问题",
+          description: "用户在反馈故障、异常、不可用或需要排查的问题。"
+        },
+        community_feedback: {
+          label: "社区反馈",
+          description: "用户给出了反馈、建议或体验层面的意见。"
+        },
+        spam_risk: {
+          label: "垃圾风险",
+          description: "用户消息疑似广告、引流或不符合社区规范，需要谨慎处理。"
+        },
+        pricing_interest: {
+          label: "高意向",
+          description: "用户表现出价格或采购相关信号，属于高意向用户。"
+        },
+        demo_interest: {
+          label: "高意向",
+          description: "用户想看 demo 或演示，属于高意向用户。"
+        },
+        enterprise_interest: {
+          label: "高意向",
+          description: "用户在做企业采购或团队评估，属于高意向用户。"
+        },
+        integration_interest: {
+          label: "准备接入",
+          description: "用户在问部署、API、集成或接入方式。"
+        },
+        trial_interest: {
+          label: "高意向",
+          description: "用户想试点、试用或做 POC，属于高意向用户。"
+        },
+        technical_user: {
+          label: "准备成长",
+          description: "用户提的是技术实现、权限、接口或排障细节，可能正在走向更深使用。"
+        }
+      };
+      const labelToTag = {
+        高意向: "high_intent",
+        准备成长: "ready_to_grow",
+        需要跟进: "needs_followup",
+        需要你拍板: "needs_your_call",
+        活动候选: "event_candidate",
+        变冷中: "going_cold",
+        核心成员: "core_member",
+        活跃用户: "active_user",
+        社区成员: "community_member",
+        支持问题: "support_issue",
+        社区反馈: "community_feedback",
+        垃圾风险: "spam_risk",
+        准备接入: "ready_to_grow"
+      };
 
       function showNotice(message) {
         notice.textContent = message;
@@ -947,85 +1301,6 @@
           return '<span class="badge">无</span>';
         }
 
-        const tagMeta = {
-          high_intent: {
-            label: "高意向",
-            description: "用户表现出明显的试用、演示、采购或价格咨询信号，值得人工跟进。"
-          },
-          ready_to_grow: {
-            label: "准备成长",
-            description: "用户的兴趣和参与正在升温，适合推进下一步接入、转化或更深的使用。"
-          },
-          needs_followup: {
-            label: "需要跟进",
-            description: "用户已经出现明确信号，下一步应该由运营、销售或支持继续推进。"
-          },
-          needs_your_call: {
-            label: "需要你拍板",
-            description: "这类问题超出了机器人应当自动决定的范围，应该由你或团队成员来做判断。"
-          },
-          needs_human_review: {
-            label: "需要你拍板",
-            description: "这类问题超出了机器人应当自动决定的范围，应该由你或团队成员来做判断。"
-          },
-          event_candidate: {
-            label: "活动候选",
-            description: "用户提到了活动报名、作品提交、抽奖或参赛，适合进入活动审核流程。"
-          },
-          going_cold: {
-            label: "变冷中",
-            description: "这位成员最近的活跃度在下降，值得尽快 nudging 或人工关心一下。"
-          },
-          core_member: {
-            label: "核心成员",
-            description: "用户在这个社区里发言频繁，是重度活跃的核心参与者。"
-          },
-          active_user: {
-            label: "活跃用户",
-            description: "用户最近或累计发言较多，持续参与社区互动。"
-          },
-          community_member: {
-            label: "社区成员",
-            description: "用户已经开始在社区里发言互动，但暂时没有更强的商机或支持信号。"
-          },
-          support_issue: {
-            label: "支持问题",
-            description: "用户在反馈故障、异常、不可用或需要排查的问题。"
-          },
-          community_feedback: {
-            label: "社区反馈",
-            description: "用户给出了反馈、建议或体验层面的意见。"
-          },
-          spam_risk: {
-            label: "垃圾风险",
-            description: "用户消息疑似广告、引流或不符合社区规范，需要谨慎处理。"
-          },
-          pricing_interest: {
-            label: "高意向",
-            description: "用户表现出价格或采购相关信号，属于高意向用户。"
-          },
-          demo_interest: {
-            label: "高意向",
-            description: "用户想看 demo 或演示，属于高意向用户。"
-          },
-          enterprise_interest: {
-            label: "高意向",
-            description: "用户在做企业采购或团队评估，属于高意向用户。"
-          },
-          integration_interest: {
-            label: "准备接入",
-            description: "用户在问部署、API、集成或接入方式。"
-          },
-          trial_interest: {
-            label: "高意向",
-            description: "用户想试点、试用或做 POC，属于高意向用户。"
-          },
-          technical_user: {
-            label: "准备成长",
-            description: "用户提的是技术实现、权限、接口或排障细节，可能正在走向更深使用。"
-          }
-        };
-
         return tags
           .map((tag) => {
             const meta = tagMeta[tag];
@@ -1042,6 +1317,65 @@
         }
 
         return '<span class="badge">频道消息</span>';
+      }
+
+      function formatStatusChip(status) {
+        const labels = {
+          shortlisted: "已入候选",
+          needs_review: "待人工看",
+          approved: "已通过",
+          rejected: "已驳回"
+        };
+        const label = labels[status] || status || "未知";
+        return `<span class="status-chip ${escapeHtml(status || "needs_review")}">${escapeHtml(label)}</span>`;
+      }
+
+      function parseCommaSeparated(value) {
+        return String(value || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      function normalizeTagInputs(values) {
+        return parseCommaSeparated(values).map((value) => labelToTag[value] || value);
+      }
+
+      function renderOpsPreview(preview, deliveries) {
+        lastOpsPreview = preview;
+        const badge = document.getElementById("ops-mode-badge");
+        const summary = document.getElementById("ops-summary");
+        const executeButton = document.getElementById("ops-execute-button");
+        badge.textContent = preview.mode === "send_message" ? "可执行" : "推荐模式";
+        badge.className = `badge ${preview.mode === "send_message" ? "active" : "admin"}`;
+        summary.textContent = deliveries
+          ? `${preview.summary} 本次发送成功 ${deliveries.filter((item) => item.status === "sent").length} 人，失败 ${deliveries.filter((item) => item.status === "failed").length} 人。`
+          : preview.summary;
+        executeButton.disabled = !preview.canExecute;
+
+        renderTableBody(
+          "ops-preview-body",
+          (preview.candidates || [])
+            .map(
+              (candidate) => `
+                <tr>
+                  <td>
+                    <strong>${escapeHtml(candidate.displayName)}</strong><br />
+                    <span class="muted">@${escapeHtml(candidate.username)}</span>
+                  </td>
+                  <td>
+                    ${candidate.primaryTag ? formatTagList([candidate.primaryTag]) : '<span class="badge">无</span>'}
+                  </td>
+                  <td>
+                    ${escapeHtml(candidate.rationale || "暂无理由")}
+                    ${candidate.matchingSnippet ? `<div class="mini-meta" style="margin-top:8px;">${escapeHtml(candidate.matchingSnippet)}</div>` : ""}
+                  </td>
+                </tr>
+              `
+            )
+            .join(""),
+          3
+        );
       }
 
       function renderGuildOptions(payload) {
@@ -1079,10 +1413,136 @@
 
       function renderDashboard(payload) {
         renderGuildOptions(payload);
+        lastOpsPreview = null;
         document.getElementById("stat-users").textContent = payload.overview.totalUsers;
         document.getElementById("stat-messages").textContent = payload.overview.totalMessages;
         document.getElementById("stat-chunks").textContent = payload.overview.knowledgeChunks;
         document.getElementById("lead-count-badge").textContent = `${payload.overview.totalLeads} 条线索`;
+        document.getElementById("handoff-count-badge").textContent = `${(payload.handoffs || []).length} 条待处理`;
+        document.getElementById("review-count-badge").textContent = `${(payload.reviews || []).length} 条待复核`;
+        document.getElementById("ops-mode-badge").textContent = "预览中";
+        document.getElementById("ops-mode-badge").className = "badge admin";
+        document.getElementById("ops-summary").textContent = "还没有生成任务预览。";
+        document.getElementById("ops-execute-button").disabled = true;
+        renderTableBody("ops-preview-body", "", 3);
+
+        const activity = payload.activity || { rule: {}, submissions: [] };
+        const rule = activity.rule || {};
+        document.getElementById("activity-name").value = rule.name || "";
+        document.getElementById("activity-include").value = (rule.includeKeywords || []).join(", ");
+        document.getElementById("activity-exclude").value = (rule.excludeKeywords || []).join(", ");
+        document.getElementById("activity-tags").value = (rule.requiredTags || []).map((tag) => tagMeta[tag]?.label || tag).join(", ");
+        document.getElementById("activity-channels").value = (rule.allowedChannelIds || []).join(", ");
+        document.getElementById("activity-min-messages").value = String(rule.minMessageCount || 0);
+        document.getElementById("activity-count-badge").textContent = `${(activity.submissions || []).length} 条候选`;
+
+        renderTableBody(
+          "handoffs-body",
+          (payload.handoffs || [])
+            .map((handoff) => `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(handoff.displayName)}</strong><br />
+                  <span class="muted">@${escapeHtml(handoff.username)}</span><br />
+                  <span class="mini-meta">${formatTime(handoff.createdAt)}</span>
+                </td>
+                <td>
+                  ${formatMessageSource(handoff.source)}<br />
+                  ${escapeHtml(handoff.question || "暂无问题内容")}
+                </td>
+                <td>${escapeHtml(handoff.reason || "需要人工判断")}</td>
+                <td>
+                  <textarea id="handoff-answer-${escapeHtml(handoff.id)}" class="review-textarea">${escapeHtml(handoff.draftAnswer || "")}</textarea>
+                  <div class="inline-actions">
+                    <label class="checkbox-inline">
+                      <input type="checkbox" id="handoff-memory-${escapeHtml(handoff.id)}" checked />
+                      写回长期记忆
+                    </label>
+                    <label class="checkbox-inline">
+                      <input type="checkbox" id="handoff-discord-${escapeHtml(handoff.id)}" checked />
+                      回发到 Discord
+                    </label>
+                    <button class="btn btn-outline btn-small" type="button" onclick="dismissHandoff('${escapeHtml(handoff.id)}')">忽略</button>
+                    <button class="btn btn-small" type="button" onclick="resolveHandoff('${escapeHtml(handoff.id)}')">保存处理</button>
+                  </div>
+                </td>
+              </tr>
+            `)
+            .join(""),
+          4
+        );
+
+        renderTableBody(
+          "reviews-body",
+          (payload.reviews || [])
+            .map((review) => `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(review.displayName)}</strong><br />
+                  <span class="muted">@${escapeHtml(review.username)}</span><br />
+                  <span class="mini-meta">${formatTime(review.createdAt)}</span>
+                </td>
+                <td>
+                  ${formatMessageSource(review.source)}<br />
+                  <strong>问：</strong> ${escapeHtml(review.question || "暂无问题")}<br /><br />
+                  <strong>答：</strong> ${escapeHtml(review.answer || "暂无回答")}
+                </td>
+                <td>${escapeHtml(review.sampleReason || "系统抽样")}</td>
+                <td>
+                  <select id="review-verdict-${escapeHtml(review.id)}" class="review-textarea" style="min-height:auto;height:46px;">
+                    <option value="good">通过</option>
+                    <option value="needs_fix">需要改进</option>
+                    <option value="wrong">回答不对</option>
+                  </select>
+                  <textarea id="review-note-${escapeHtml(review.id)}" class="review-textarea" placeholder="可选：记录为什么这条回答好/不好，或者补充人工意见"></textarea>
+                  <textarea id="review-answer-${escapeHtml(review.id)}" class="review-textarea" placeholder="如果要修正答案，可以在这里填修正版"></textarea>
+                  <div class="inline-actions">
+                    <label class="checkbox-inline">
+                      <input type="checkbox" id="review-memory-${escapeHtml(review.id)}" />
+                      将修正版写回长期记忆
+                    </label>
+                    <button class="btn btn-small" type="button" onclick="submitReview('${escapeHtml(review.id)}')">提交复核</button>
+                  </div>
+                </td>
+              </tr>
+            `)
+            .join(""),
+          4
+        );
+
+        renderTableBody(
+          "activity-submissions-body",
+          (activity.submissions || [])
+            .map(
+              (submission) => `
+                <tr>
+                  <td>
+                    <strong>${escapeHtml(submission.displayName)}</strong><br />
+                    <span class="muted">@${escapeHtml(submission.username)}</span><br />
+                    <span class="mini-meta">${formatTime(submission.createdAt)}</span>
+                  </td>
+                  <td>
+                    ${formatTagList(submission.tags || [])}<br />
+                    <div style="margin-top:8px;">${escapeHtml(submission.content || "暂无内容")}</div>
+                  </td>
+                  <td>
+                    ${formatStatusChip(submission.status)}
+                    <div class="mini-meta" style="margin-top:8px;">${escapeHtml(submission.screeningSummary || "暂无初筛说明")}</div>
+                    ${submission.reviewNote ? `<div class="mini-meta" style="margin-top:8px;">审核备注：${escapeHtml(submission.reviewNote)}</div>` : ""}
+                  </td>
+                  <td>
+                    <textarea id="activity-note-${escapeHtml(submission.id)}" class="review-textarea" style="min-height:88px;" placeholder="可选：记录为什么通过或驳回">${escapeHtml(submission.reviewNote || "")}</textarea>
+                    <div class="inline-actions">
+                      <button class="btn btn-outline btn-small" type="button" onclick="reviewActivitySubmission('${escapeHtml(submission.id)}', 'rejected')">驳回</button>
+                      <button class="btn btn-small" type="button" onclick="reviewActivitySubmission('${escapeHtml(submission.id)}', 'approved')">通过</button>
+                    </div>
+                  </td>
+                </tr>
+              `
+            )
+            .join(""),
+          4
+        );
 
         renderTableBody(
           "profiles-body",
@@ -1195,7 +1655,7 @@
                   </li>
                 `
               )
-              .join("")
+            .join("")
           : '<li class="empty-state">还没有配置远程来源。</li>';
       }
 
@@ -1206,6 +1666,177 @@
           throw new Error("加载后台失败");
         }
         renderDashboard(await response.json());
+      }
+
+      async function resolveHandoff(id) {
+        const answer = document.getElementById(`handoff-answer-${id}`).value.trim();
+        const addToKnowledge = document.getElementById(`handoff-memory-${id}`).checked;
+        const sendToDiscord = document.getElementById(`handoff-discord-${id}`).checked;
+        if (!answer) {
+          showNotice("请先填写人工确认后的答案。");
+          return;
+        }
+
+        const response = await fetch(`/admin/api/handoffs/${encodeURIComponent(id)}/resolve`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            answer,
+            addToKnowledge,
+            sendToDiscord
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "处理人工接管项失败");
+        }
+        showNotice(
+          addToKnowledge
+            ? payload.postedToDiscord
+              ? "已保存人工答案、回发到 Discord，并写回长期记忆。"
+              : "已保存人工答案，并写回长期记忆。"
+            : payload.postedToDiscord
+              ? "已保存人工答案，并回发到 Discord。"
+              : "已保存人工答案。"
+        );
+        await loadDashboard(currentGuildId);
+      }
+
+      async function dismissHandoff(id) {
+        const response = await fetch(`/admin/api/handoffs/${encodeURIComponent(id)}/dismiss`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({})
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "忽略人工接管项失败");
+        }
+        showNotice("这条人工接管项已从队列移除。");
+        await loadDashboard(currentGuildId);
+      }
+
+      async function submitReview(id) {
+        const verdict = document.getElementById(`review-verdict-${id}`).value;
+        const note = document.getElementById(`review-note-${id}`).value.trim();
+        const correctedAnswer = document.getElementById(`review-answer-${id}`).value.trim();
+        const addToKnowledge = document.getElementById(`review-memory-${id}`).checked;
+
+        const response = await fetch(`/admin/api/reviews/${encodeURIComponent(id)}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            verdict,
+            note,
+            correctedAnswer,
+            addToKnowledge
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "提交回答复核失败");
+        }
+        showNotice(addToKnowledge ? "回答复核已保存，并把修正版写回长期记忆。" : "回答复核已保存。");
+        await loadDashboard(currentGuildId);
+      }
+
+      async function saveActivityRule() {
+        const response = await fetch("/admin/api/activity/rule", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            guildId: currentGuildId,
+            name: document.getElementById("activity-name").value.trim(),
+            includeKeywords: parseCommaSeparated(document.getElementById("activity-include").value),
+            excludeKeywords: parseCommaSeparated(document.getElementById("activity-exclude").value),
+            requiredTags: normalizeTagInputs(document.getElementById("activity-tags").value),
+            allowedChannelIds: parseCommaSeparated(document.getElementById("activity-channels").value),
+            minMessageCount: Number(document.getElementById("activity-min-messages").value || 0)
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "保存活动规则失败");
+        }
+        showNotice("活动初筛规则已保存。");
+        await loadDashboard(currentGuildId);
+      }
+
+      async function reviewActivitySubmission(id, verdict) {
+        const note = document.getElementById(`activity-note-${id}`).value.trim();
+        const response = await fetch(`/admin/api/activity/submissions/${encodeURIComponent(id)}/review`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            guildId: currentGuildId,
+            verdict,
+            note
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "提交活动审核失败");
+        }
+        showNotice(verdict === "approved" ? "这条提交已通过。" : "这条提交已驳回。");
+        await loadDashboard(currentGuildId);
+      }
+
+      async function previewOpsTask() {
+        const instruction = document.getElementById("ops-instruction").value.trim();
+        if (!instruction) {
+          showNotice("请先输入一句话任务。");
+          return;
+        }
+        const response = await fetch("/admin/api/ops/preview", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            guildId: currentGuildId,
+            instruction
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "生成任务预览失败");
+        }
+        renderOpsPreview(payload.preview);
+        showNotice(payload.preview.canExecute ? "任务预览已生成，可以确认执行。" : "任务预览已生成。");
+      }
+
+      async function executeOpsTask() {
+        const instruction = document.getElementById("ops-instruction").value.trim();
+        if (!instruction) {
+          showNotice("请先输入一句话任务。");
+          return;
+        }
+        const response = await fetch("/admin/api/ops/execute", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            guildId: currentGuildId,
+            instruction
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "执行任务失败");
+        }
+        renderOpsPreview(payload.preview, payload.deliveries || []);
+        showNotice("批量触达已执行。");
       }
 
       guildSelect.addEventListener("change", async (event) => {
@@ -1252,6 +1883,10 @@
         form.reset();
         await loadDashboard();
       });
+
+      document.getElementById("activity-save-button").addEventListener("click", saveActivityRule);
+      document.getElementById("ops-preview-button").addEventListener("click", previewOpsTask);
+      document.getElementById("ops-execute-button").addEventListener("click", executeOpsTask);
 
       window.addEventListener("hashchange", syncActiveNav);
       syncActiveNav();

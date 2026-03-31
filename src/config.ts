@@ -155,6 +155,7 @@ export function getConfig(): BotConfig {
     adminPort: parseIntEnv("ADMIN_PORT", 3010),
     adminUsername: optionalEnv("ADMIN_USERNAME"),
     adminPassword: optionalEnv("ADMIN_PASSWORD"),
+    activityRulesFile: path.resolve(process.cwd(), optionalEnv("ACTIVITY_RULES_FILE") ?? "./config/activity-rules.json"),
     guildConfigFile,
     guildConfigs
   };

@@ -41,6 +41,7 @@ export interface BotConfig {
   adminPort: number;
   adminUsername?: string;
   adminPassword?: string;
+  activityRulesFile: string;
   guildConfigFile?: string;
   guildConfigs: Record<string, GuildChannelConfig>;
 }

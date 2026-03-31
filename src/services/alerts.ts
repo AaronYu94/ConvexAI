@@ -61,6 +61,31 @@ export class AlertService {
     ]);
   }
 
+  async sendAnswerHandoffAlert(
+    client: Client,
+    guildId: string,
+    username: string,
+    question: string,
+    reason: string,
+    draftAnswer: string
+  ): Promise<void> {
+    const guildConfig = getGuildConfig(this.config, guildId);
+    const body = [
+      "Human review requested",
+      `User: ${username}`,
+      `Reason: ${reason}`,
+      `Question: ${question}`,
+      "Draft answer:",
+      draftAnswer
+    ].join("\n");
+
+    await Promise.all([
+      this.sendDiscordMessage(client, guildConfig.alertChannelId, body),
+      this.sendSlackMessage(`*Human review requested*\n${body.replace(/\n/g, "\n> ")}`),
+      this.sendEmail("Community bot human review requested", body)
+    ]);
+  }
+
   private async sendDiscordMessage(client: Client, channelId: string | undefined, content: string): Promise<void> {
     if (!channelId) {
       return;

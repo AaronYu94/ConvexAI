@@ -1,0 +1,13 @@
+{
+  "guilds": {
+    "YOUR_GUILD_ID": {
+      "guildId": "YOUR_GUILD_ID",
+      "name": "四月活动筛选",
+      "allowedChannelIds": ["ACTIVITY_CHANNEL_ID"],
+      "includeKeywords": ["报名", "提交", "截图"],
+      "excludeKeywords": ["测试", "草稿"],
+      "requiredTags": ["active_user"],
+      "minMessageCount": 3
+    }
+  }
+}

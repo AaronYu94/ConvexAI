@@ -8,5 +8,7 @@ tmp
 Lucius_PPT_compressed.pdf
 image.png
 config/guilds.json
+config/activity-rules.json
 knowledge/sources.json
+knowledge/review-memory.md
 knowledge/uploads
