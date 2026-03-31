@@ -1183,6 +1183,14 @@ export class AdminServer {
     app.use(express.json({ limit: "2mb" }));
     app.use("/admin", authMiddleware);
 
+    app.get("/favicon.png", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "logo.png"));
+    });
+
+    app.get("/favicon.ico", (_req, res) => {
+      res.sendFile(path.resolve(process.cwd(), "logo.png"));
+    });
+
     app.get("/admin/assets/logo.png", (_req, res) => {
       res.sendFile(path.resolve(process.cwd(), "logo.png"));
     });
